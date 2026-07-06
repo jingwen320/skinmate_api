@@ -55,7 +55,7 @@
                         <button class="p-2 rounded-xl hover:bg-surface-container-low text-stone-500 transition-colors">
                             <span class="material-symbols-outlined" data-icon="call">call</span>
                         </button> -->
-                        <button class="px-4 py-2 bg-stone-100 rounded-full text-xs font-bold text-stone-600 hover:bg-stone-200 transition-colors">
+                        <button id="btn-resolve-ticket" onclick="resolveCurrentActiveTicket()" class="px-4 py-2 bg-stone-100 rounded-full text-xs font-bold text-stone-600 hover:bg-stone-200 transition-colors">
                             Resolve Ticket
                         </button>
                     </div>
@@ -74,7 +74,8 @@
                         <!-- <button class="p-2 text-stone-400 hover:text-primary transition-colors">
                             <span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
                         </button> -->
-                        <textarea id="admin-reply-input" class="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 resize-none outline-none" placeholder="Type your reply here..." rows="1" onkeydown="if(event.key === 'Enter') { event.preventDefault(); sendAdminMessageText(); }"></textarea>
+                        <!-- <textarea id="admin-reply-input" class="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 resize-none outline-none" placeholder="Type your reply here..." rows="1" onkeydown="if(event.key === 'Enter') { event.preventDefault(); sendAdminMessageText(); }"></textarea> -->
+                        <textarea id="admin-reply-input" class="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 resize-none outline-none transition-all" placeholder="Type your reply here..." rows="1" onkeydown="if(event.key === 'Enter' && !this.disabled) { event.preventDefault(); sendAdminMessageText(); }"></textarea>
                         <!-- <button class="p-2 text-stone-400 hover:text-primary transition-colors">
                             <span class="material-symbols-outlined" data-icon="mood">mood</span>
                         </button> -->
@@ -99,7 +100,7 @@
                             -
                         </div>
                     </div>
-                    <h4 id="context-user-name" class="text-lg font-bold">---</h4>
+                    <h4 id="context-user-name" class="text-lg font-bold">-</h4>
                     <p id="context-user-joined" class="text-xs text-on-surface-variant">Gathering details...</p>
                 </div>
                 
@@ -367,6 +368,55 @@
                 }
             }
 
+            const currentRoomData = window.loadedRoomsCache ? window.loadedRoomsCache.find(r => r.room_id === roomId) : null;
+            const isRoomClosed = currentRoomData && currentRoomData.status === 'closed';
+
+            const inputArea = document.getElementById('admin-reply-input');
+
+            if (inputArea) {
+                if (isRoomClosed) {
+                    inputArea.disabled = true;
+                    inputArea.placeholder = "🔒 This ticket has been resolved and marked as closed.";
+                    // Swaps cursor to not-allowed and dampens text colors
+                    inputArea.className = "flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 resize-none outline-none text-stone-400 cursor-not-allowed select-none";
+                } else {
+                    inputArea.disabled = false;
+                    inputArea.placeholder = "Type your reply here...";
+                    // Returns layout to its standard interactive look
+                    inputArea.className = "flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 resize-none outline-none text-on-surface";
+                }
+            }
+
+            const emojiButton = document.getElementById('emoji-trigger-btn');
+
+            if (emojiButton) {
+                if (isRoomClosed) {
+                    emojiButton.disabled = true;
+                    // Fades out color, turns off hover animations, and updates cursor indicator
+                    emojiButton.className = "p-2 text-stone-200 cursor-not-allowed pointer-events-none transition-colors focus:outline-none";
+                    
+                    // Safety: If your native emoji dropdown panel is open, make sure it hides immediately
+                    const existingDropdown = document.getElementById('native-emoji-dropdown');
+                    if (existingDropdown) existingDropdown.classList.add('hidden');
+                } else {
+                    emojiButton.disabled = false;
+                    // Restores active hover configurations smoothly
+                    emojiButton.className = "p-2 text-stone-400 hover:text-primary transition-colors focus:outline-none";
+                }
+            }
+
+            const resolveBtn = document.getElementById('btn-resolve-ticket');
+
+            if (resolveBtn) {
+                if (isRoomClosed) {
+                    resolveBtn.disabled = true;
+                    resolveBtn.className = "px-4 py-2 bg-stone-100 rounded-full text-xs font-bold text-stone-400 cursor-not-allowed select-none";
+                } else {
+                    resolveBtn.disabled = false;
+                    resolveBtn.className = "px-4 py-2 bg-stone-100 rounded-full text-xs font-bold text-stone-600 hover:bg-stone-200 transition-colors";
+                }
+            }
+
             document.getElementById('header-user-name').innerText = finalName;
             document.getElementById('header-room-id-label').innerText = `Room #TK-${roomId} connected`;
             document.getElementById('context-user-name').innerText = finalName;
@@ -487,6 +537,94 @@
                     alert("Error sending message: " + data.message);
                 }
             }).catch(err => console.error("POST error:", err));
+        }
+
+        function resolveCurrentActiveTicket() {
+            // Guard clause checking if a room is even selected
+            if (!activeRoomId) {
+                alert("Please select an active ticket queue frame to resolve first.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to mark Ticket #TK-${activeRoomId} as fully resolved?`)) {
+                return;
+            }
+
+            // Target the button context element to avoid multiple click loops
+            const resolveBtn = document.getElementById('btn-resolve-ticket');
+            if (resolveBtn) {
+                resolveBtn.disabled = true;
+                resolveBtn.innerText = "Closing...";
+            }
+
+            fetch('backend/close_room.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ room_id: activeRoomId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`Ticket #TK-${activeRoomId} cataloged successfully as closed.`);
+                    
+                    // 1. Wipe out center active canvas data frames
+                    resetAdminWorkspaceCanvas();
+
+                    // 2. Forces left sidebar queue UI loops to instantly flash modifications
+                    refreshTicketQueueList();
+                } else {
+                    alert("System Fault: " + data.message);
+                }
+            })
+            .catch(err => console.error("Critical Resolution Request Interruption Failure:", err))
+            .finally(() => {
+                // Re-enable interactive button attributes
+                if (resolveBtn) {
+                    resolveBtn.disabled = false;
+                    resolveBtn.innerText = "Resolve Ticket";
+                }
+            });
+        }
+
+        function resetAdminWorkspaceCanvas() {
+            activeRoomId = null;
+            currentActiveUserId = null;
+
+            // Clear header indicators
+            document.getElementById('header-user-name').innerText = "Select a Room";
+            document.getElementById('header-room-id-label').innerText = "Waiting for connection...";
+            document.getElementById('context-user-name').innerText = "-";
+            document.getElementById('context-user-joined').innerText = "Gathering details...";
+            document.getElementById('context-user-lifetime').innerText = "RM 0.00";
+            document.getElementById('context-user-orders').innerText = "0";
+            document.getElementById('context-skin-tags').innerHTML = '<span class="text-xs text-stone-400 italic">No skin scans run yet.</span>';
+
+            // Clear avatar circular layouts
+            const avatarCircle = document.getElementById('header-user-avatar-placeholder');
+            if (avatarCircle) avatarCircle.innerText = "-";
+            const contextAvatar = document.getElementById('context-user-avatar');
+            if (contextAvatar) contextAvatar.innerText = "-";
+
+            // Hide the status ring completely
+            const liveStatusDot = document.getElementById('header-user-status-dot');
+            if (liveStatusDot) liveStatusDot.className = "hidden";
+
+            // Disconnect standard socket channels gracefully if active
+            if (activePusherChannelName && pusherClient) {
+                pusherClient.unsubscribe('chat-room-' + activePusherChannelName);
+                activePusherChannelName = null;
+            }
+
+            // Fill canvas messaging canvas wrapper text nodes safely
+            const canvas = document.getElementById('admin-chat-canvas');
+            if (canvas) {
+                canvas.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-center text-stone-400">
+                        <span class="material-symbols-outlined text-4xl mb-2" data-icon="forum">forum</span>
+                        <p class="text-sm font-semibold">No ongoing chat selected</p>
+                        <p class="text-xs max-w-xs mt-1">Please select an active ticket entry row from the left panel sidebar column queue to view messages.</p>
+                    </div>`;
+            }
         }
     </script>
 </body>
