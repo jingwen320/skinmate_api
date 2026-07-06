@@ -91,7 +91,7 @@ if ($message === '检查连接') {
     while ($row = $msg_check->fetch_assoc()) {
         // This grabs the welcome message we inserted in Step 3!
         $initial_messages[] = [
-            "sender_type" => "sender_type",
+            "sender_type" => $row['sender_type'],
             "message"     => $row['message'],
             "time"        => date("d M, h:i A", strtotime($row['created_at']))
         ];
