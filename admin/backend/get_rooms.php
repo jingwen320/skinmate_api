@@ -14,11 +14,17 @@ if ($requestedStatus === 'closed') {
 $placeholders = implode(',', array_fill(0, count($allowedStatuses), '?'));
 
 $query = "SELECT r.id AS room_id, r.user_id, r.status, r.created_at, u.name AS user_name,
-          (SELECT message FROM chat_messages WHERE room_id = r.id ORDER BY created_at DESC LIMIT 1) AS last_message
+          (SELECT message FROM chat_messages WHERE room_id = r.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+          (SELECT COUNT(*) FROM chat_messages WHERE room_id = r.id AND sender_type = 'user' AND is_read = 0) AS has_unread,
+          COALESCE(
+             (SELECT created_at FROM chat_messages WHERE room_id = r.id ORDER BY created_at DESC LIMIT 1), 
+             r.created_at
+          ) AS latest_message_time
           FROM chat_rooms r 
           LEFT JOIN users u ON r.user_id = u.id
           WHERE r.status IN ($placeholders)
-          ORDER BY r.updated_at DESC";
+          ORDER BY latest_message_time DESC";
+        // ORDER BY r.updated_at DESC";
 
 $stmt = $conn->prepare($query);
 $types = str_repeat('s', count($allowedStatuses));
@@ -34,7 +40,8 @@ if ($result) {
             "user_id" => (int)$row['user_id'],
             "user_name" => $row['user_name'] ?? 'Unknown User',
             "status" => $row['status'],
-            "last_message" => $row['last_message'] ?? 'No messages yet.'
+            "last_message" => $row['last_message'] ?? 'No messages yet.',
+            "has_unread" => (int)$row['has_unread']
         ];
     }
     echo json_encode(["status" => "success", "rooms" => $rooms]);

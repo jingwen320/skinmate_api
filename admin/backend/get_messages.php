@@ -13,8 +13,16 @@ if ($room_id === 0) {
     exit;
 }
 
-// Cleaned Query: Target the exact room directly without an unnecessary JOIN
-$query = "SELECT sender_type, message, created_at 
+$update_query = "UPDATE chat_messages 
+                 SET is_read = 1 
+                 WHERE room_id = ? AND sender_type = 'user' AND is_read = 0";
+
+$update_stmt = $conn->prepare($update_query);
+$update_stmt->bind_param("i", $room_id);
+$update_stmt->execute();
+$update_stmt->close();
+
+$query = "SELECT sender_type, message, is_read, created_at 
           FROM chat_messages 
           WHERE room_id = ? 
           ORDER BY created_at ASC";
@@ -29,6 +37,7 @@ while ($row = $result->fetch_assoc()) {
     $messages[] = [
         "sender_type" => $row['sender_type'],
         "message"     => $row['message'],
+        "is_read"     => (int)$row['is_read'],
         // Explicitly formats timestamp for your frontend UI bubbles
         "time"        => date("d M, h:i A", strtotime($row['created_at']))
     ];

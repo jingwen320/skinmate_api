@@ -288,16 +288,40 @@
 
                         data.rooms.forEach((room, index) => {
                             const isSelected = room.room_id === activeRoomId;
+
+                            const isUnread = room.has_unread > 0 && currentTabStatus === 'open';
+
                             const accentBorderColor = currentTabStatus === 'open' ? 'border-primary' : 'border-stone-400';
                             const dotIndicatorColor = currentTabStatus === 'open' ? 'bg-green-500 animate-pulse' : 'bg-stone-400';
                             
-                            const stylingClasses = isSelected 
-                                ? `p-4 bg-surface-container-lowest rounded-2xl shadow-sm border-l-4 ${accentBorderColor} cursor-pointer ticket-card-item` 
-                                : 'p-4 hover:bg-surface-container rounded-2xl transition-all cursor-pointer group ticket-card-item';
+                            // const stylingClasses = isSelected 
+                            //     ? `p-4 bg-surface-container-lowest rounded-2xl shadow-sm border-l-4 ${accentBorderColor} cursor-pointer ticket-card-item` 
+                            //     : 'p-4 hover:bg-surface-container rounded-2xl transition-all cursor-pointer group ticket-card-item';
 
-                            let badgeElement = room.status === 'open'
-                                ? `<span class="ml-auto flex items-center gap-1 text-[10px] bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full"><span class="material-symbols-outlined text-[10px]"></span>Pending</span>`
-                                : `<span class="ml-auto text-[10px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded-full">Closed</span>`;
+                            // let badgeElement = room.status === 'open'
+                            //     ? `<span class="ml-auto flex items-center gap-1 text-[10px] bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full"><span class="material-symbols-outlined text-[10px]"></span>Pending</span>`
+                            //     : `<span class="ml-auto text-[10px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded-full">Closed</span>`;
+
+                            let stylingClasses = "";
+                            if (isSelected) {
+                                stylingClasses = `p-4 bg-surface-container-lowest rounded-2xl shadow-sm border-l-4 ${accentBorderColor} cursor-pointer ticket-card-item`;
+                            } else if (isUnread) {
+                                stylingClasses = `p-4 bg-white border border-stone-200/80 rounded-2xl shadow-sm border-l-4 border-primary/50 cursor-pointer ticket-card-item hover:bg-stone-50/50 transition-all`;
+                            } else {
+                                stylingClasses = 'p-4 hover:bg-surface-container rounded-2xl transition-all cursor-pointer group ticket-card-item';
+                            }
+
+                            const nameFontWeight = isUnread ? 'font-black text-stone-950' : 'font-bold text-on-surface';
+                            const msgFontWeight = isUnread ? 'font-bold text-stone-900' : 'text-on-surface-variant';
+
+                            let badgeElement = "";
+                            if (isUnread) {
+                                badgeElement = `<span class="ml-auto flex items-center gap-1.5 text-[10px] bg-green-500/10 text-green-600 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider animate-pulse">New Msg</span>`;
+                            } else {
+                                badgeElement = room.status === 'open'
+                                    ? `<span class="ml-auto flex items-center gap-1 text-[10px] bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded-full">Pending</span>`
+                                    : `<span class="ml-auto text-[10px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded-full">Closed</span>`;
+                            }
 
                             // Added explicit data-room-id attributes to locate individual cards seamlessly later
                             queueContainer.innerHTML += `
@@ -306,8 +330,8 @@
                                         <span class="text-xs font-bold text-primary uppercase tracking-tighter">#TK-${room.room_id}</span>
                                         <span class="text-[10px] text-stone-400 capitalize">${room.status}</span>
                                     </div>
-                                    <h3 class="font-bold text-sm mb-1 truncate">${room.user_name}</h3>
-                                    <p class="text-xs text-on-surface-variant line-clamp-1 mb-3">${room.last_message || 'No messages yet'}</p>
+                                    <h3 class="font-bold text-sm mb-1 truncate ${nameFontWeight}">${room.user_name}</h3>
+                                    <p class="text-xs text-on-surface-variant line-clamp-1 mb-3 ${msgFontWeight}">${room.last_message || 'No messages yet'}</p>
                                     <div class="flex items-center gap-2">
                                         <div class="w-2 h-2 rounded-full ${dotIndicatorColor}"></div>
                                         <span class="text-[11px] font-medium text-stone-500">${currentTabStatus === 'open' ? 'Live Support' : 'Past Session'}</span>
@@ -343,7 +367,15 @@
                 if (cardRoomId === roomId) {
                     card.className = `p-4 bg-surface-container-lowest rounded-2xl shadow-sm border-l-4 ${accentBorderColor} cursor-pointer ticket-card-item`;
                 } else {
-                    card.className = 'p-4 hover:bg-surface-container rounded-2xl transition-all cursor-pointer group ticket-card-item';
+                    // card.className = 'p-4 hover:bg-surface-container rounded-2xl transition-all cursor-pointer group ticket-card-item';
+                    const cachedRoom = window.loadedRoomsCache ? window.loadedRoomsCache.find(r => r.room_id === cardRoomId) : null;
+                    const isCardUnread = cachedRoom && cachedRoom.has_unread > 0 && currentTabStatus === 'open';
+
+                    if (isCardUnread) {
+                        card.className = `p-4 bg-white border border-stone-200/80 rounded-2xl shadow-sm border-l-4 border-primary/50 cursor-pointer ticket-card-item hover:bg-stone-50/50 transition-all`;
+                    } else {
+                        card.className = 'p-4 hover:bg-surface-container rounded-2xl transition-all cursor-pointer group ticket-card-item';
+                    }
                 }
             });
 
@@ -480,6 +512,8 @@
                             setTimeout(() => {
                                 canvas.scrollTop = canvas.scrollHeight;
                             }, 50);
+                            
+                            refreshTicketQueueList();
                         } else {
                             canvas.innerHTML = '<p class="text-xs text-stone-400 text-center mt-10">No messages found in this ticket yet.</p>';
                         }
