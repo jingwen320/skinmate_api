@@ -141,7 +141,7 @@ $orders_result = $orders_stmt->get_result();
                         <p class="text-xl font-black text-primary mt-0.5">RM <?php echo number_format($lifetime_spend, 2); ?></p>
                     </div>
                     <a href="users.php?view_user=<?php echo $target_user_id; ?>" 
-                       class="self-end px-5 py-3 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container-low transition-all flex items-center gap-1.5 shadow-xs">
+                       class="self-end px-5 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-full text-xs font-bold text-on-surface-variant hover:bg-surface-container-low transition-all flex items-center gap-1.5 shadow-xs">
                         <span class="material-symbols-outlined text-sm">arrow_back</span> Return to Profile
                     </a>
                 </div>
