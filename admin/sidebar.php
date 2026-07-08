@@ -142,10 +142,35 @@ $current_page = basename($_SERVER['PHP_SELF']);
         </a>
         
         <!-- Users Tab -->
-        <a class="mx-2 px-4 py-3 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'users.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-600 dark:text-stone-400 hover:bg-orange-50 dark:hover:bg-stone-800'; ?>" href="users.php">
+        <!-- <a class="mx-2 px-4 py-3 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'users.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-600 dark:text-stone-400 hover:bg-orange-50 dark:hover:bg-stone-800'; ?>" href="users.php">
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' <?php echo ($current_page === 'users.php') ? '1' : '0'; ?>;">group</span>
             <span>Users</span>
-        </a>
+        </a> -->
+        <div class="space-y-1">
+            <!-- Main Users Tab -->
+            <a class="mx-2 px-4 py-3 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'users.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-600 dark:text-stone-400 hover:bg-orange-50 dark:hover:bg-stone-800'; ?>" href="users.php">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' <?php echo ($current_page === 'users.php') ? '1' : '0'; ?>;">group</span>
+                <span>Users</span>
+            </a>
+
+            <?php if ($current_page === 'users.php' || $current_page === 'skin_progress.php' || $current_page === 'order_history.php'): ?>
+                <?php 
+                    $sub_link_param = isset($target_user_id) && $target_user_id > 0 ? '?user_id=' . $target_user_id : '';
+                ?>
+                <a class="mx-2 ml-8 px-4 py-2.5 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'skin_progress.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-500 dark:text-stone-400 hover:bg-orange-50/60 dark:hover:bg-stone-800/60'; ?>" 
+                   href="<?php echo ($sub_link_param) ? 'skin_progress.php' . $sub_link_param : 'javascript:void(0);'; ?>" 
+                   <?php if(!$sub_link_param) echo 'style="opacity: 0.35; cursor: not-allowed;" title="Select a user profile first"'; ?>>
+                    <span class="material-symbols-outlined text-base" style="font-variation-settings: 'FILL' <?php echo ($current_page === 'skin_progress.php') ? '1' : '0'; ?>;">history</span>
+                    <span class="text-xs">Skin Progress</span>
+                </a>
+                <a class="mx-2 ml-8 px-4 py-2.5 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'order_history.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-500 dark:text-stone-400 hover:bg-orange-50/60 dark:hover:bg-stone-800/60'; ?>" 
+                   href="<?php echo ($sub_link_param) ? 'order_history.php' . $sub_link_param : 'javascript:void(0);'; ?>" 
+                   <?php if(!$sub_link_param) echo 'style="opacity: 0.35; cursor: not-allowed;" title="Select a user profile first"'; ?>>
+                    <span class="material-symbols-outlined text-base" style="font-variation-settings: 'FILL' <?php echo ($current_page === 'order_history.php') ? '1' : '0'; ?>;">receipt_long</span>
+                    <span class="text-xs">Order History</span>
+                </a>
+            <?php endif; ?>
+        </div>
 
         <!-- Refunds Tab -->
         <a class="mx-2 px-4 py-3 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'refunds.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-600 dark:text-stone-400 hover:bg-orange-50 dark:hover:bg-stone-800'; ?>" href="refunds.php">
