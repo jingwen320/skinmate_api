@@ -341,14 +341,14 @@ if ($result && $result->num_rows > 0) {
                                 <div class="mt-8 space-y-4">
                                     <div class="flex justify-between items-center">
                                         <h4 class="text-xs font-black uppercase tracking-widest text-on-surface-variant">Recent Orders</h4>
-                                        <a href="orders.php?user_id=<?php echo $focused_profile['user_id']; ?>" class="text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
+                                        <a href="order_history.php?user_id=<?php echo $focused_profile['user_id']; ?>" class="text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
                                             View All Orders <span class="material-symbols-outlined text-xs">arrow_forward</span>
                                         </a>
                                     </div>
 
                                     <div id="async-order-card-container" data-inspect-user-id="<?php echo $focused_profile['user_id']; ?>">
                                         <div class="p-6 text-center text-xs text-stone-400 font-medium bg-stone-50 rounded-xl animate-pulse">
-                                            Querying ledger items history...
+                                            Loading purchased items history...
                                         </div>
                                     </div>
                                 </div>
@@ -401,10 +401,12 @@ if ($result && $result->num_rows > 0) {
                     // 1. Establish Status Badge Styling Profiles
                     let badgeClass = 'bg-stone-100 text-stone-700';
                     const normalizedStatus = order.status.toLowerCase();
-                    if (['paid', 'completed', 'delivered'].includes(normalizedStatus)) {
+                    if (['delivered', 'refunded'].includes(normalizedStatus)) {
                         badgeClass = 'bg-green-500/10 text-green-600';
-                    } else if (['pending', 'processing'].includes(normalizedStatus)) {
-                        badgeClass = 'bg-amber-500/10 text-amber-600';
+                    } else if (['completed'].includes(normalizedStatus)) {
+                        badgeClass = 'bg-primary/10 text-primary';
+                    } else if (['cancelled', 'refund rejected'].includes(normalizedStatus)) {
+                        badgeClass = 'bg-red-500/10 text-red-600';
                     }
 
                     // 2. Map structural lists item elements
@@ -415,14 +417,14 @@ if ($result && $result->num_rows > 0) {
                                 <img src="../images/${item.image}" alt="" class="w-8 h-8 rounded-lg object-cover bg-stone-50 error-fallback-thumb" onerror="this.src='../assets/placeholder-box.png'">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-xs font-bold text-stone-800 truncate">${item.product_name}</p>
-                                    <p class="text-[10px] text-stone-400 font-medium">Qty: ${item.quantity} &middot; RM ${item.unit_price.toFixed(2)}</p>
+                                    <p class="text-[10px] text-stone-400 font-medium">RM ${item.unit_price.toFixed(2)} &middot; Qty: ${item.quantity}</p>
                                 </div>
                             </div>`;
                     });
 
                     // 3. Assemble components completely together
                     container.innerHTML = `
-                        <div onclick="window.location.href='orders.php?order_id=${order.id}'" 
+                        <div onclick="window.location.href='order.php?order_id=${order.id}'" 
                             class="p-4 bg-white border border-stone-200/60 rounded-2xl shadow-xs hover:shadow-sm transition-all cursor-pointer group">
                             
                             <div class="flex items-start justify-between mb-3">
