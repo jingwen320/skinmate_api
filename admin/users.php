@@ -13,6 +13,19 @@ if ($count_res = $conn->query("SELECT COUNT(*) as total FROM users")) {
     $total_count = $count_res->fetch_assoc()['total'];
 }
 
+$allowed_sort_columns = [
+    'name' => 'u.name',
+    'skin_type' => 'sp.skin_type',
+    'health' => 'sp.health_score',
+    'date' => 'u.created_at'
+];
+
+$sort_key = isset($_GET['sort']) && array_key_exists($_GET['sort'], $allowed_sort_columns) ? $_GET['sort'] : 'date';
+$sort_order = isset($_GET['direction']) && strtoupper($_GET['direction']) === 'ASC' ? 'ASC' : 'DESC';
+
+$next_direction = ($sort_order === 'DESC') ? 'ASC' : 'DESC';
+$db_sort_column = $allowed_sort_columns[$sort_key];
+
 $query = "SELECT 
             u.id AS user_id, 
             u.name, 
@@ -34,7 +47,7 @@ $query = "SELECT
               ORDER BY created_at DESC, id DESC 
               LIMIT 1
           )
-          ORDER BY u.created_at DESC";
+          ORDER BY {$db_sort_column} {$sort_order}";
 
 $result = $conn->query($query);
 
@@ -55,6 +68,15 @@ if ($result && $result->num_rows > 0) {
             $focused_profile = $row;
         }
     }
+}
+
+function getSortIcon($column, $current_sort, $current_direction) {
+    if ($current_sort !== $column) {
+        return '<span class="material-symbols-outlined text-[12px] opacity-40 group-hover:opacity-100 transition-opacity">unfold_more</span>';
+    }
+    return $current_direction === 'ASC' 
+        ? '<span class="material-symbols-outlined text-[12px] text-primary">arrow_upward</span>' 
+        : '<span class="material-symbols-outlined text-[12px] text-primary">arrow_downward</span>';
 }
 ?>
 <!DOCTYPE html>
@@ -177,12 +199,23 @@ if ($result && $result->num_rows > 0) {
                         </div>
 
                         <div class="space-y-4">
-                            <div class="grid grid-cols-5 px-4 py-2 text-[10px] uppercase font-black text-stone-400 tracking-widest">
-                                <div class="col-span-2">User Identity</div>
+                            <div class="grid grid-cols-10 px-4 py-2 text-[10px] uppercase font-black text-stone-400 tracking-widest">
+                                <!-- <div class="col-span-2">User Identity</div>
                                 <div>Skin Type</div>
-                                <!-- <div>Status</div> -->
+                                <div>Status</div> 
                                 <div>Reg. Date</div>
-                                <div class="text-right">Actions</div>
+                                <div class="text-right">Actions</div> -->
+
+                                <a href="?sort=name&direction=<?php echo ($sort_key === 'name') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>" class="col-span-4 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
+                                    User Identity <?php echo getSortIcon('name', $sort_key, $sort_order); ?>
+                                </a>
+                                <a href="?sort=skin_type&direction=<?php echo ($sort_key === 'skin_type') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>" class="col-span-3 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
+                                    Skin Type <?php echo getSortIcon('skin_type', $sort_key, $sort_order); ?>
+                                </a>
+                                <a href="?sort=date&direction=<?php echo ($sort_key === 'date') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>" class="col-span-2 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
+                                    Reg. Date <?php echo getSortIcon('date', $sort_key, $sort_order); ?>
+                                </a>
+                                <div class="col-span-1 text-right">Action</div>
                             </div>
 
                             <?php if (!empty($users_list)): ?>
@@ -192,37 +225,30 @@ if ($result && $result->num_rows > 0) {
                                         ? 'bg-primary-container/10 border-2 border-primary-container/30' 
                                         : 'hover:bg-surface-container-low border-2 border-transparent';
                                 ?>
-                                    <div onclick="window.location.href='users.php?view_user=<?php echo $user['user_id']; ?>'" 
-                                        class="grid grid-cols-5 items-center px-4 py-4 rounded-xl transition-all cursor-pointer <?php echo $row_classes; ?>">
+                                    <div onclick="window.location.href='users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>'" class="grid grid-cols-10 items-center px-4 py-3 rounded-xl border transition-all cursor-pointer <?php echo $row_classes; ?>">
                                         
-                                        <div class="col-span-2 flex items-center gap-3">
-                                            <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-xs uppercase select-none">
-                                                <?php echo substr(htmlspecialchars($user['name'] ?? 'U'), 0, 1); ?>
+                                        <div class="col-span-4 flex items-center gap-3 pr-2">
+                                            <div class="w-9 h-9 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
+                                                <?php echo substr($user['name'] ?? 'U', 0, 1); ?>
                                             </div>
-                                            <div class="truncate pr-2">
+                                            <div class="truncate">
                                                 <p class="font-bold text-sm text-on-surface truncate"><?php echo htmlspecialchars($user['name']); ?></p>
                                                 <p class="text-xs text-on-surface-variant truncate"><?php echo htmlspecialchars($user['email']); ?></p>
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                        <div class="col-span-3">
+                                            <span class="bg-tertiary-container text-on-tertiary-container px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider inline-block truncate max-w-full">
                                                 <?php echo htmlspecialchars($user['skin_type'] ?? 'Unknown'); ?>
                                             </span>
                                         </div>
 
-                                        <!-- <div>
-                                            <span class="flex items-center gap-1.5 text-xs font-medium text-green-600">
-                                                <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Active
-                                            </span>
-                                        </div> -->
-
-                                        <div class="text-xs text-on-surface-variant font-medium">
+                                        <div class="col-span-2 text-xs text-on-surface-variant font-medium">
                                             <?php echo date('M d, Y', strtotime($user['user_created_at'])); ?>
                                         </div>
 
-                                        <div class="flex justify-end gap-2" onclick="event.stopPropagation();">
-                                            <a href="users.php?view_user=<?php echo $user['user_id']; ?>" class="p-2 hover:bg-primary/10 rounded-lg text-primary transition-colors">
+                                        <div class="col-span-1 flex justify-end" onclick="event.stopPropagation();">
+                                            <a href="users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>" class="p-1.5 hover:bg-primary/10 rounded-lg text-primary transition-colors">
                                                 <span class="material-symbols-outlined text-lg">visibility</span>
                                             </a>
                                         </div>
@@ -247,9 +273,9 @@ if ($result && $result->num_rows > 0) {
                                     <div class="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white font-black text-2xl text-primary tracking-tighter bg-orange-50 uppercase select-none">
                                         <?php echo substr(htmlspecialchars($focused_profile['name'] ?? 'U'), 0, 1); ?>
                                     </div>
-                                    <button class="bg-white/80 backdrop-blur-sm p-2 rounded-full text-primary hover:bg-white shadow-sm mt-12 focus:outline-none">
+                                    <!-- <button class="bg-white/80 backdrop-blur-sm p-2 rounded-full text-primary hover:bg-white shadow-sm mt-12 focus:outline-none">
                                         <span class="material-symbols-outlined">more_horiz</span>
-                                    </button>
+                                    </button> -->
                                 </div>
 
                                 <h3 class="text-xl font-extrabold text-on-surface"><?php echo htmlspecialchars($focused_profile['name']); ?></h3>
