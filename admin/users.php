@@ -361,7 +361,7 @@ if ($result && $result->num_rows > 0) {
                     <?php else: ?>
                         <div class="bg-surface-container-lowest rounded-xl p-12 text-center text-stone-400 border border-stone-200/40">
                             <span class="material-symbols-outlined text-3xl block mb-2">face</span>
-                            Select an account row to view detailed report data.
+                            Select an account row to view detailed data.
                         </div>
                     <?php endif; ?>
                 </div>
