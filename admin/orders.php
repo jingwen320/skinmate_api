@@ -295,10 +295,12 @@ if (!empty($orders_list)) {
                 <?php if ($active_tab === 'completed'): ?>
                     <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
                         
-                        <a href="orders.php?tab=completed&sub_status=All<?php echo !empty($search_query) ? '&search='.urlencode($search_query) : ''; ?>" 
-                        class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all whitespace-nowrap <?php echo $sub_status === 'All' ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
+                        <?php $all_url = "orders.php?tab=completed&sub_status=All" . (!empty($search_query) ? '&search='.urlencode($search_query) : ''); ?>
+                        <button type="button" 
+                        onclick="viewOrder('<?php echo $all_url; ?>')"
+                        class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap <?php echo $sub_status === 'All' ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
                             All
-                        </a>
+                        </button>
 
                         <?php 
                         foreach ($completed_statuses as $st): 
