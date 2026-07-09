@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     $category = trim($_POST['category']); 
     $price = floatval($_POST['price']);
     $stock_quantity = intval($_POST['stock_quantity']);
+    $sold_quantity = intval($_POST['sold_quantity']);
 
     // Parse checkboxes array strictly into a flat string for the description column
     $description = isset($_POST['concerns']) ? parseConcerns($_POST['concerns']) : 'General Skincare';
@@ -82,8 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
         $temp_image = "";
         
         // 8 columns total -> sssssdis format signature mapping
-        $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssdis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $temp_image);
+        $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssssdiis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $sold_quantity, $temp_image);
         
         if ($stmt->execute()) {
             $newId = $conn->insert_id; // Capture new unique database identity value
@@ -556,7 +557,7 @@ $products_result = $conn->query($query);
                                         <td class="px-8 py-6 text-sm font-medium text-stone-400">#RD-<?php echo $prod['id']; ?></td>
                                         <td class="px-6 py-6">
                                             <div class="flex items-center gap-4">
-                                                <div class="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center overflow-hidden border border-stone-200">
+                                                <div class="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center overflow-hidden border border-stone-200 shrink-0">
                                                     <?php if (!empty($prod['image'])): ?>
                                                         <img src="../images/<?php echo htmlspecialchars($prod['image']); ?>" class="w-full h-full object-cover" alt="">
                                                     <?php else: ?>
@@ -575,9 +576,27 @@ $products_result = $conn->query($query);
                                             </span>
                                         </td>
                                         <td class="px-6 py-6">
-                                            <span class="text-sm font-medium text-stone-600 block max-w-xs truncate" title="<?php echo htmlspecialchars($prod['description'] ?? ''); ?>">
-                                                <?php echo htmlspecialchars($prod['description'] ?? 'General Skincare'); ?>
-                                            </span>
+                                            <div class="flex flex-col gap-1.5" title="<?php echo htmlspecialchars($prod['description'] ?? ''); ?>">
+                                                <?php 
+                                                $description = $prod['description'] ?? 'General Skincare';
+                                                if (!empty(trim($description))):
+                                                    $tags = explode(',', $description);
+                                                    foreach ($tags as $tag):
+                                                        $clean_tag = trim($tag);
+                                                        if ($clean_tag !== ''): 
+                                                ?>
+                                                            <div class="flex items-center gap-2 text-xs font-medium text-stone-600 whitespace-nowrap">
+                                                                <span class="w-1 h-1 rounded-full bg-primary shrink-0"></span>
+                                                                <?php echo htmlspecialchars($clean_tag); ?>
+                                                            </div>
+                                                <?php 
+                                                        endif;
+                                                    endforeach;
+                                                else: 
+                                                ?>
+                                                    <span class="text-xs text-stone-400 font-medium">General Skincare</span>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                         <td class="px-6 py-6">
                                             <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
@@ -586,7 +605,7 @@ $products_result = $conn->query($query);
                                         </td>
                                         <td class="px-6 py-6 text-sm font-bold text-on-surface"><?php echo number_format($prod['price'], 2); ?></td>
                                         <td class="px-6 py-6">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex items-center gap-2 truncate">
                                                 <?php if ($is_active): ?>
                                                     <div class="w-1.5 h-1.5 rounded-full <?php echo $prod['stock_quantity'] < 10 ? 'bg-orange-500' : 'bg-emerald-500'; ?>"></div>
                                                     <span class="text-sm font-medium <?php echo $prod['stock_quantity'] < 10 ? 'text-orange-600 font-bold' : ''; ?>">
@@ -638,6 +657,7 @@ $products_result = $conn->query($query);
                     <form action="products.php" method="POST" enctype="multipart/form-data" class="space-y-6">
                         <input type="hidden" name="product_id" id="form_product_id">
                         <input type="hidden" name="action_type" id="form_action_type" value="create">
+                        <input type="hidden" name="sold_quantity" id="form_sold_quantity" value="0">
                         <input type="hidden" name="existing_image" id="form_existing_image">
 
                         <div class="grid grid-cols-2 gap-6">
@@ -781,6 +801,7 @@ $products_result = $conn->query($query);
             document.getElementById('form_category').value = 'Cleanser';
             document.getElementById('form_price').value = '';
             document.getElementById('form_stock_quantity').value = '';
+            document.getElementById('form_sold_quantity').value = '';
             document.getElementById('form_image_file').value = '';
             
             const previewText = document.getElementById('form_image_preview_text');
