@@ -248,7 +248,7 @@ $orders_result = $orders_stmt->get_result();
                                                         RM <?php echo number_format($item['unit_price'] * $item['quantity'], 2); ?>
                                                     </p>
                                                     <p class="text-[9px] text-on-surface-variant/50 font-medium tracking-tight mt-0.5">
-                                                        RM <?php echo number_format($item['current_retail_price'], 2); ?> Each
+                                                        RM <?php echo number_format($item['current_retail_price'], 2); ?> ea
                                                     </p>
                                                 </div>
                                             </div>
