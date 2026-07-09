@@ -476,7 +476,7 @@
                         // Loop out individual problem parameter distributions matching your database layout keys
                         Object.entries(context.skin_profile.metrics).forEach(([metricName, value]) => {
                             if (value > 20) { // Only highlight as a tag badge alert if threshold issue metric exceeds 20%
-                                tagBox.innerHTML += `<span class="bg-stone-100 text-stone-700 border border-stone-200 text-[10px] font-medium px-2 py-1 rounded-md">${metricName} ${value}%</span>`;
+                                tagBox.innerHTML += `<span class="bg-stone-100 text-stone-700 border border-stone-200 text-[10px] font-medium px-2 py-1 rounded-md">${metricName}: ${value}%</span>`;
                             }
                         });
                     } else {
@@ -512,7 +512,7 @@
                             setTimeout(() => {
                                 canvas.scrollTop = canvas.scrollHeight;
                             }, 50);
-                            
+
                             refreshTicketQueueList();
                         } else {
                             canvas.innerHTML = '<p class="text-xs text-stone-400 text-center mt-10">No messages found in this ticket yet.</p>';

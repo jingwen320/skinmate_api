@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     $category = trim($_POST['category']); 
     $price = floatval($_POST['price']);
     $stock_quantity = intval($_POST['stock_quantity']);
+    $sold_quantity = intval($_POST['sold_quantity']);
 
     // Parse checkboxes array strictly into a flat string for the description column
     $description = isset($_POST['concerns']) ? parseConcerns($_POST['concerns']) : 'General Skincare';
@@ -82,8 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
         $temp_image = "";
         
         // 8 columns total -> sssssdis format signature mapping
-        $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssdis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $temp_image);
+        $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssssdiis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $sold_quantity, $temp_image);
         
         if ($stmt->execute()) {
             $newId = $conn->insert_id; // Capture new unique database identity value
@@ -143,6 +144,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     }
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'export_excel') {
+    $filename = "Product_Inventory_Report_" . date('Y-m-d') . ".xls";
+    
+    header("Content-Type: application/vnd.ms-excel; charset=UTF-8");
+    header("Content-Disposition: attachment; filename=\"$filename\"");
+    header("Pragma: no-cache");
+    header("Expires: 0");
+
+    echo "\xEF\xBB\xBF";
+
+    $threshold_query = "SELECT DISTINCT sold_quantity FROM products ORDER BY sold_quantity DESC LIMIT 1 OFFSET 2";
+    $threshold_res = $conn->query($threshold_query);
+    $top_3_threshold = 0;
+    
+    if ($threshold_res && $threshold_res->num_rows > 0) {
+        $top_3_threshold = (int)$threshold_res->fetch_assoc()['sold_quantity'];
+    } else {
+        // Fallback: if there are fewer than 3 distinct items, find the absolute highest sold quantity
+        $fallback_query = "SELECT MAX(sold_quantity) as max_sold FROM products";
+        $fallback_res = $conn->query($fallback_query);
+        if ($fallback_res) {
+            $top_3_threshold = (int)$fallback_res->fetch_assoc()['max_sold'];
+        }
+    }
+
+    $export_query = "SELECT id, name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, created_at FROM products ORDER BY id ASC";
+    $export_result = $conn->query($export_query);
+
+    echo '
+    <head>
+        <style>
+            .bg-danger-light { background-color: #FFC7CE; color: #9C0006; font-weight: bold; } /* Soft red highlight */
+            .bg-success-light { background-color: #C6EFCE; color: #006100; font-weight: bold; } /* Soft green highlight */
+        </style>
+    </head>
+    <body>
+    ';
+
+    echo '<table border="1" cellpadding="5" cellspacing="0">';
+    echo '<thead>';
+    echo '  <tr>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Product ID</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Product Name</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Brand</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Skin Suitability</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Target Concerns</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Category</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Price (RM)</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Stock Balance</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Sold Count</th>';
+    echo '    <th style="background-color: #91462e; color: white; font-weight: bold;">Date Added</th>';
+    echo '  </tr>';
+    echo '</thead>';
+    echo '<tbody>';
+
+    while ($row = $export_result->fetch_assoc()) {
+        $stock = (int)$row['stock_quantity'];
+        $sold = (int)$row['sold_quantity'];
+
+        $stock_class = ($stock < 10) ? ' class="bg-danger-light"' : '';
+        
+        $sold_class = ($sold >= $top_3_threshold && $sold > 0) ? ' class="bg-success-light"' : '';
+
+        echo '<tr>';
+        // Force strings to preserve leading hashes safely without string drops
+        echo '  <td style="vnd.ms-excel.numberformat:@">#RD-' . $row['id'] . '</td>';
+        echo '  <td>' . htmlspecialchars($row['name']) . '</td>';
+        echo '  <td>' . htmlspecialchars($row['brand']) . '</td>';
+        echo '  <td>' . htmlspecialchars($row['skin_suitability']) . '</td>';
+        echo '  <td>' . htmlspecialchars($row['description']) . '</td>';
+        echo '  <td>' . htmlspecialchars($row['category']) . '</td>';
+        echo '  <td>' . number_format($row['price'], 2) . '</td>';
+        echo '  <td' . $stock_class . '>' . $stock . '</td>';
+        echo '  <td' . $sold_class . '>' . $sold . '</td>';
+        echo '  <td>' . $row['created_at'] . '</td>';
+        echo '</tr>';
+    }
+
+    echo '</tbody>';
+    echo '</table>';
+    echo '</body>';
+    echo '</html>';
+
+    exit;
+}
+
 // 🔒 INACTIVATION ENGINE
 if (isset($_GET['inactivate_id'])) {
     $inactivate_id = intval($_GET['inactivate_id']);
@@ -168,7 +255,7 @@ if ($low_res = $conn->query("SELECT COUNT(*) as low_total FROM products WHERE st
 }
 
 // $query = "SELECT id, name, brand, skin_suitability, description, category, price, stock_quantity, image, created_at FROM products ORDER BY id DESC";
-$query = "SELECT id, name, brand, skin_suitability, description, category, price, stock_quantity, image, created_at FROM products ORDER BY id ASC";
+$query = "SELECT id, name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, image, created_at FROM products ORDER BY id ASC";
 $products_result = $conn->query($query);
 ?>
 <!DOCTYPE html>
@@ -271,10 +358,14 @@ $products_result = $conn->query($query);
                     <p class="text-on-surface-variant mt-1">Manage your skincare catalog and stock levels.</p>
                 </div>
                 <div class="flex gap-3">
-                    <button onclick="openCreateModal()" class="px-6 py-3 bg-primary text-on-primary text-sm font-bold rounded-full flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95">
+                    <button onclick="openCreateModal()" class="px-6 py-3 bg-primary text-on-primary text-sm font-bold rounded-full flex items-center gap-2 shadow-lg shadow-primary/20 transition-all duration-200 hover:opacity-95 hover:shadow-xl hover:shadow-primary/30 active:scale-95">
                         <span class="material-symbols-outlined text-lg">add</span>
                         Add New Product
                     </button>
+                    <a href="products.php?action=export_excel" class="px-6 py-3 bg-secondary-container text-on-secondary-container text-sm font-bold rounded-full flex items-center gap-2 shadow-lg shadow-secondary-container/20 transition-all duration-200 hover:opacity-90 hover:shadow-xl hover:shadow-secondary-container/30 no-underline inline-flex items-center active:scale-95">
+                        <span class="material-symbols-outlined text-lg">download</span>
+                        Export to Excel
+                    </a>
                 </div>
             </div>
 
@@ -379,103 +470,178 @@ $products_result = $conn->query($query);
             </div>
 
             <div class="bg-surface-container-lowest rounded-[2rem] shadow-sm border border-stone-100 overflow-hidden">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-surface-container-low/50">
-                            <th class="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Product ID</th>
-                            <th class="px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Product Details</th>
-                            <th class="px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Skin Suitability</th>
-                            <th class="px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Target Concerns</th>
-                            <th class="px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Category</th>
-                            <th class="px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Price (RM)</th>
-                            <th class="px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500">Stock Status</th>
-                            <th class="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-stone-100">
-                        <?php if ($products_result && $products_result->num_rows > 0): ?>
-                            <?php while ($prod = $products_result->fetch_assoc()): 
-                                $is_active = ($prod['stock_quantity'] > 0);
+                <div class="w-full overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[1100px]">
+                        <thead>
+                            <tr class="bg-surface-container-low/50">
+                                <th onclick="toggleTableSort(0, 'int')" class="cursor-pointer select-none px-8 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Product ID
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
                                 
-                                // Build a clean, lowercase text blob for client-side search indexing
-                                $search_blob = strtolower(($prod['description'] ?? '') . ' ' . ($prod['name'] ?? '') . ' ' . ($prod['brand'] ?? ''));
-                            ?>
-                                <tr class="product-data-row-item hover:bg-surface-container-low transition-colors group <?php echo !$is_active ? 'bg-stone-50/60 opacity-60' : ''; ?>"
-                                    data-brand="<?php echo htmlspecialchars($prod['brand'] ?? 'Generic'); ?>"
-                                    data-suitability="<?php echo htmlspecialchars($prod['skin_suitability'] ?? 'All Skin Types'); ?>"
-                                    data-description="<?php echo htmlspecialchars($search_blob); ?>"
-                                    data-category="<?php echo htmlspecialchars($prod['category'] ?? ''); ?>"
-                                    data-price="<?php echo floatval($prod['price']); ?>"
-                                    data-stock="<?php echo intval($prod['stock_quantity']); ?>">
+                                <th onclick="toggleTableSort(1, 'str')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Product Details
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th onclick="toggleTableSort(2, 'str')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Skin Suitability
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th onclick="toggleTableSort(3, 'str')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Target Concerns
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th onclick="toggleTableSort(4, 'str')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Category
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th onclick="toggleTableSort(5, 'float')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Price (RM)
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th onclick="toggleTableSort(6, 'int')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Stock Status
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th onclick="toggleTableSort(7, 'int')" class="cursor-pointer select-none px-6 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 hover:text-primary transition-colors group/th">
+                                    <div class="flex items-center gap-1">
+                                        Sold Status
+                                        <span class="sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-colors">unfold_more</span>
+                                    </div>
+                                </th>
+                                
+                                <th class="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.15em] text-stone-500 text-right">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody" class="divide-y divide-stone-100">
+                            <?php if ($products_result && $products_result->num_rows > 0): ?>
+                                <?php while ($prod = $products_result->fetch_assoc()): 
+                                    $is_active = ($prod['stock_quantity'] > 0);
+
+                                    $id_string = 'id-' . $prod['id'] . ' #rd-' . $prod['id'];
                                     
-                                    <td class="px-8 py-6 text-sm font-medium text-stone-400">#RD-<?php echo $prod['id']; ?></td>
-                                    <td class="px-6 py-6">
-                                        <div class="flex items-center gap-4">
-                                            <div class="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center overflow-hidden border border-stone-200">
-                                                <?php if (!empty($prod['image'])): ?>
-                                                    <img src="../images/<?php echo htmlspecialchars($prod['image']); ?>" class="w-full h-full object-cover" alt="">
-                                                <?php else: ?>
-                                                    <span class="material-symbols-outlined text-stone-400">shampoo</span>
+                                    // Build a clean, lowercase text blob for client-side search indexing
+                                    $search_blob = strtolower($id_string . ' ' . ($prod['description'] ?? '') . ' ' . ($prod['name'] ?? '') . ' ' . ($prod['brand'] ?? ''));
+                                ?>
+                                    <tr class="product-data-row-item hover:bg-surface-container-low transition-colors group <?php echo !$is_active ? 'bg-stone-50/60 opacity-60' : ''; ?>"
+                                        data-brand="<?php echo htmlspecialchars($prod['brand'] ?? 'Generic'); ?>"
+                                        data-suitability="<?php echo htmlspecialchars($prod['skin_suitability'] ?? 'All Skin Types'); ?>"
+                                        data-description="<?php echo htmlspecialchars($search_blob); ?>"
+                                        data-category="<?php echo htmlspecialchars($prod['category'] ?? ''); ?>"
+                                        data-price="<?php echo floatval($prod['price']); ?>"
+                                        data-stock="<?php echo intval($prod['stock_quantity']); ?>"
+                                        data-sold="<?php echo intval($prod['sold_quantity']); ?>">
+                                        
+                                        <td class="px-8 py-6 text-sm font-medium text-stone-400">#RD-<?php echo $prod['id']; ?></td>
+                                        <td class="px-6 py-6">
+                                            <div class="flex items-center gap-4">
+                                                <div class="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center overflow-hidden border border-stone-200 shrink-0">
+                                                    <?php if (!empty($prod['image'])): ?>
+                                                        <img src="../images/<?php echo htmlspecialchars($prod['image']); ?>" class="w-full h-full object-cover" alt="">
+                                                    <?php else: ?>
+                                                        <span class="material-symbols-outlined text-stone-400">shampoo</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div>
+                                                    <p class="text-[10px] text-primary font-bold uppercase tracking-widest"><?php echo htmlspecialchars($prod['brand'] ?? 'Generic'); ?></p>
+                                                    <p class="font-bold text-on-surface text-sm"><?php echo htmlspecialchars($prod['name']); ?></p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-6">
+                                            <span class="bg-tertiary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
+                                                <?php echo htmlspecialchars($prod['skin_suitability'] ?? 'All'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-6">
+                                            <div class="flex flex-col gap-1.5" title="<?php echo htmlspecialchars($prod['description'] ?? ''); ?>">
+                                                <?php 
+                                                $description = $prod['description'] ?? 'General Skincare';
+                                                if (!empty(trim($description))):
+                                                    $tags = explode(',', $description);
+                                                    foreach ($tags as $tag):
+                                                        $clean_tag = trim($tag);
+                                                        if ($clean_tag !== ''): 
+                                                ?>
+                                                            <div class="flex items-center gap-2 text-xs font-medium text-stone-600 whitespace-nowrap">
+                                                                <span class="w-1 h-1 rounded-full bg-primary shrink-0"></span>
+                                                                <?php echo htmlspecialchars($clean_tag); ?>
+                                                            </div>
+                                                <?php 
+                                                        endif;
+                                                    endforeach;
+                                                else: 
+                                                ?>
+                                                    <span class="text-xs text-stone-400 font-medium">General Skincare</span>
                                                 <?php endif; ?>
                                             </div>
-                                            <div>
-                                                <p class="text-[10px] text-primary font-bold uppercase tracking-widest"><?php echo htmlspecialchars($prod['brand'] ?? 'Generic'); ?></p>
-                                                <p class="font-bold text-on-surface text-base"><?php echo htmlspecialchars($prod['name']); ?></p>
+                                        </td>
+                                        <td class="px-6 py-6">
+                                            <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
+                                                <?php echo htmlspecialchars($prod['category']); ?>
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-6 text-sm font-bold text-on-surface"><?php echo number_format($prod['price'], 2); ?></td>
+                                        <td class="px-6 py-6">
+                                            <div class="flex items-center gap-2 truncate">
+                                                <?php if ($is_active): ?>
+                                                    <div class="w-1.5 h-1.5 rounded-full <?php echo $prod['stock_quantity'] < 10 ? 'bg-orange-500' : 'bg-emerald-500'; ?>"></div>
+                                                    <span class="text-sm font-medium <?php echo $prod['stock_quantity'] < 10 ? 'text-orange-600 font-bold' : ''; ?>">
+                                                        <?php echo $prod['stock_quantity']; ?> In Stock
+                                                    </span>
+                                                <?php else: ?>
+                                                    <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                                                    <span class="text-sm font-bold text-red-600">Not Available</span>
+                                                <?php endif; ?>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-6">
-                                        <span class="bg-tertiary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
-                                            <?php echo htmlspecialchars($prod['skin_suitability'] ?? 'All'); ?>
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-6">
-                                        <span class="text-sm font-medium text-stone-600 block max-w-xs truncate" title="<?php echo htmlspecialchars($prod['description'] ?? ''); ?>">
-                                            <?php echo htmlspecialchars($prod['description'] ?? 'General Skincare'); ?>
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-6">
-                                        <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
-                                            <?php echo htmlspecialchars($prod['category']); ?>
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-6 text-sm font-bold text-on-surface"><?php echo number_format($prod['price'], 2); ?></td>
-                                    <td class="px-6 py-6">
-                                        <div class="flex items-center gap-2">
-                                            <?php if ($is_active): ?>
-                                                <div class="w-1.5 h-1.5 rounded-full <?php echo $prod['stock_quantity'] < 10 ? 'bg-orange-500' : 'bg-emerald-500'; ?>"></div>
-                                                <span class="text-sm font-medium <?php echo $prod['stock_quantity'] < 10 ? 'text-orange-600 font-bold' : ''; ?>">
-                                                    <?php echo $prod['stock_quantity']; ?> In Stock
-                                                </span>
-                                            <?php else: ?>
-                                                <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                                                <span class="text-sm font-bold text-red-600">Not Available</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </td>
-                                    <td class="px-8 py-6 text-right space-x-1">
-                                        <button onclick='openEditModal(<?php echo json_encode($prod); ?>)' class="p-2 text-stone-400 hover:text-primary hover:bg-primary-container/20 rounded-lg transition-all" title="Edit Parameters">
-                                            <span class="material-symbols-outlined">edit_note</span>
-                                        </button>
-                                        <?php if ($is_active): ?>
-                                            <a href="products.php?inactivate_id=<?php echo $prod['id']; ?>" onclick="return confirm('Flag this formulation item as inactive / unlisted to customers?');" class="p-2 text-stone-400 hover:text-error hover:bg-error/10 rounded-lg inline-block transition-all" title="Inactivate Product">
-                                                <span class="material-symbols-outlined">block</span>
-                                            </a>
-                                        <?php else: ?>
-                                            <button class="p-2 text-stone-200 cursor-not-allowed" disabled>
-                                                <span class="material-symbols-outlined">block</span>
+                                        </td>
+                                        <td class="px-6 py-6 text-sm text-on-surface"><?php echo $prod['sold_quantity']; ?> Sold</td>
+                                        <td class="px-8 py-6 text-right space-x-1">
+                                            <button onclick='captureScrollAndOpenEdit(<?php echo json_encode($prod); ?>)' class="p-2 text-stone-400 hover:text-primary hover:bg-primary-container/20 rounded-lg transition-all" title="Edit Parameters">
+                                                <span class="material-symbols-outlined">edit_note</span>
                                             </button>
-                                        <?php endif; ?>
-                                    </td>
+                                            <?php if ($is_active): ?>
+                                                <a href="products.php?inactivate_id=<?php echo $prod['id']; ?>" onclick="captureScrollPosition(); return confirm('Flag this formulation item as inactive / unlisted to customers?');" class="p-2 text-stone-400 hover:text-error hover:bg-error/10 rounded-lg inline-block transition-all" title="Inactivate Product">
+                                                    <span class="material-symbols-outlined">block</span>
+                                                </a>
+                                            <?php else: ?>
+                                                <button class="p-2 text-stone-200 cursor-not-allowed" disabled>
+                                                    <span class="material-symbols-outlined">block</span>
+                                                </button>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="9" class="text-center p-12 text-sm text-stone-400 font-medium">No skin formulation records present.</td>
                                 </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="8" class="text-center p-12 text-sm text-stone-400 font-medium">No skin formulation records present.</td>
-                            </tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
@@ -491,6 +657,7 @@ $products_result = $conn->query($query);
                     <form action="products.php" method="POST" enctype="multipart/form-data" class="space-y-6">
                         <input type="hidden" name="product_id" id="form_product_id">
                         <input type="hidden" name="action_type" id="form_action_type" value="create">
+                        <input type="hidden" name="sold_quantity" id="form_sold_quantity" value="0">
                         <input type="hidden" name="existing_image" id="form_existing_image">
 
                         <div class="grid grid-cols-2 gap-6">
@@ -634,6 +801,7 @@ $products_result = $conn->query($query);
             document.getElementById('form_category').value = 'Cleanser';
             document.getElementById('form_price').value = '';
             document.getElementById('form_stock_quantity').value = '';
+            document.getElementById('form_sold_quantity').value = '';
             document.getElementById('form_image_file').value = '';
             
             const previewText = document.getElementById('form_image_preview_text');
@@ -722,12 +890,7 @@ $products_result = $conn->query($query);
             document.getElementById('stock_range_badge').textContent = value + ' units';
         }
 
-        /**
-         * High-Speed Evaluation Array Search Pipeline
-         * Scans each product asset block sequentially inside the browser DOM matrix.
-         */
         function executeDataFilterPipeline() {
-            // 1. Gather all control state variables from target form filters
             const searchKeyword  = document.getElementById('filter_search_input').value.toLowerCase().trim();
             const selectedBrand  = document.getElementById('filter_brand_select').value;
             const selectCategory = document.getElementById('filter_category_select').value;
@@ -735,11 +898,9 @@ $products_result = $conn->query($query);
             const maxAllowedPrice = parseFloat(document.getElementById('filter_price_range').value);
             const minRequiredStock = parseInt(document.getElementById('filter_stock_range').value, 10);
 
-            // 2. Extract every active row element present in the view table array
             const dataRows = document.querySelectorAll('.product-data-row-item');
 
             dataRows.forEach(row => {
-                // Read dataset strings injected by our PHP data loop layer
                 const itemBrand       = row.getAttribute('data-brand');
                 const itemCategory    = row.getAttribute('data-category');
                 const itemSuitability = row.getAttribute('data-suitability');
@@ -747,22 +908,109 @@ $products_result = $conn->query($query);
                 const itemPrice       = parseFloat(row.getAttribute('data-price'));
                 const itemStock       = parseInt(row.getAttribute('data-stock'), 10);
 
-                // 3. Complete conditional evaluations
                 const matchSearch = searchKeyword === "" || itemDescription.includes(searchKeyword) || itemBrand.toLowerCase().includes(searchKeyword);
                 const matchBrand  = selectedBrand === "ALL" || itemBrand === selectedBrand;
                 const matchCat    = selectCategory === "ALL" || itemCategory === selectCategory;
                 const matchSuit   = selectSuit === "ALL" || itemSuitability.includes(selectSuit) || itemSuitability === "All Skin Types";
                 
-                // Numerical comparative limits evaluation checks
                 const matchPrice  = itemPrice <= maxAllowedPrice;
                 const matchStock  = itemStock >= minRequiredStock;
 
-                // 4. Update element visibility based on criteria matching
                 if (matchSearch && matchBrand && matchCat && matchSuit && matchPrice && matchStock) {
-                    row.style.display = ""; // Clears inline block overrides to show naturally
-                    row.style.opacity = "1";
+                    row.style.display = ""; 
+
+                    if (itemStock === 0) {
+                        row.style.opacity = "0.6"; 
+                    } else {
+                        row.style.opacity = "1";   
+                    }
                 } else {
-                    row.style.display = "none"; // Safe layout removal rule injection
+                    row.style.display = "none"; 
+                }
+            });
+        }
+
+        function captureScrollPosition() {
+            localStorage.setItem('inventory_scroll_y', window.scrollY);
+        }
+
+        function captureScrollAndOpenEdit(productData) {
+            captureScrollPosition();
+            openEditModal(productData); 
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedScrollY = localStorage.getItem('inventory_scroll_y');
+            if (savedScrollY !== null) {
+                window.scrollTo(0, parseInt(savedScrollY, 10));
+                localStorage.removeItem('inventory_scroll_y'); 
+            }
+        });
+
+        const adminForm = document.querySelector('form'); 
+        if (adminForm) {
+            adminForm.addEventListener('submit', captureScrollPosition);
+        }
+
+
+        let currentSortColumn = -1;
+        let isAscending = true;
+
+        function toggleTableSort(columnIndex, dataType) {
+            const tableBody = document.getElementById('inventoryTableBody');
+            const rows = Array.from(tableBody.querySelectorAll('.product-data-row-item'));
+            
+            if (currentSortColumn === columnIndex) {
+                isAscending = !isAscending; 
+            } else {
+                isAscending = true;
+                currentSortColumn = columnIndex;
+            }
+
+            rows.sort((rowA, rowB) => {
+                let cellA = rowA.children[columnIndex];
+                let cellB = rowB.children[columnIndex];
+                
+                let valA, valB;
+
+                if (columnIndex === 5) { // Price
+                    valA = parseFloat(rowA.getAttribute('data-price')) || 0;
+                    valB = parseFloat(rowB.getAttribute('data-price')) || 0;
+                } else if (columnIndex === 6) { // Stock
+                    valA = parseInt(rowA.getAttribute('data-stock'), 10) || 0;
+                    valB = parseInt(rowB.getAttribute('data-stock'), 10) || 0;
+                } else if (columnIndex === 7) { // Sold
+                    valA = parseInt(rowA.getAttribute('data-sold'), 10) || 0;
+                    valB = parseInt(rowB.getAttribute('data-sold'), 10) || 0;
+                } else {
+                    valA = cellA.textContent.trim().toLowerCase();
+                    valB = cellB.textContent.trim().toLowerCase();
+                }
+
+                if (dataType === 'int' && columnIndex === 0) { // Strip text prefixes from product numbers
+                    valA = parseInt(valA.replace('#rd-', ''), 10) || 0;
+                    valB = parseInt(valB.replace('#rd-', ''), 10) || 0;
+                }
+
+                if (valA < valB) return isAscending ? -1 : 1;
+                if (valA > valB) return isAscending ? 1 : -1;
+                return 0;
+            });
+
+            rows.forEach(row => tableBody.appendChild(row));
+            updateSortIndicatorIcons(columnIndex);
+        }
+
+        function updateSortIndicatorIcons(activeColumnIndex) {
+            const icons = document.querySelectorAll('th .sort-icon');
+            
+            icons.forEach((icon, idx) => {
+                if (idx === activeColumnIndex) {
+                    icon.innerHTML = isAscending ? 'arrow_upward' : 'arrow_downward';
+                    icon.className = "sort-icon material-symbols-outlined text-sm text-primary font-bold transition-all";
+                } else {
+                    icon.innerHTML = 'unfold_more';
+                    icon.className = "sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-all";
                 }
             });
         }
