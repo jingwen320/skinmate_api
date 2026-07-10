@@ -1,7 +1,17 @@
 <?php
 // admin/login.php
+date_default_timezone_set('Asia/Kuala_Lumpur');
 session_start();
 include '../db.php';
+
+require '../PHPMailer/Exception.php';
+require '../PHPMailer/PHPMailer.php';
+require '../PHPMailer/SMTP.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+$mail = new PHPMailer(true);
 
 $error = '';
 
@@ -10,18 +20,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = trim($_POST['password'] ?? '');
 
     if (!empty($username) && !empty($password)) {
-        $stmt = $conn->prepare("SELECT id, username, password_hash FROM admin WHERE username = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT id, username, email, password_hash FROM admin WHERE username = ? LIMIT 1");
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($row = $result->fetch_assoc()) {
-            if (password_verify($password, $row['password_hash'])) {
-                $_SESSION['admin_logged_in'] = true;
-                $_SESSION['admin_id'] = $row['id'];
-                $_SESSION['admin_user'] = $row['username'];
+            // if (password_verify($password, $row['password_hash'])) {
+            //     $_SESSION['admin_logged_in'] = true;
+            //     $_SESSION['admin_id'] = $row['id'];
+            //     $_SESSION['admin_user'] = $row['username'];
                 
-                header("Location: index.php");
+            //     header("Location: index.php");
+            //     exit;
+            // } else {
+            //     $error = "Invalid username or password. hint: check your credentials and try again.";
+            // }
+            if (password_verify($password, $row['password_hash'])) {
+                $otp = rand(100000, 999999);
+                $expiry = date("Y-m-d H:i:s", strtotime("+5 minutes"));
+
+                $hashed_otp = password_hash((string)$otp, PASSWORD_DEFAULT);
+                
+                // Store in DB
+                $update = $conn->prepare("UPDATE admin SET otp_code = ?, otp_expiry = ? WHERE id = ?");
+                $update->bind_param("ssi", $hashed_otp, $expiry, $row['id']);
+                $update->execute();
+
+                // Send email (Mockup: You can log it for now)
+                // error_log("TAC for Admin: $otp"); // Check your server logs
+                try {
+                    // Server settings
+                    $mail->isSMTP();                                            
+                    $mail->Host       = 'smtp.gmail.com';                     
+                    $mail->SMTPAuth   = true;                                   
+                    $mail->Username   = 'jingwenng0320@gmail.com';      
+                    $mail->Password   = 'ihyq rjjg mmxx odvc';      
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL
+                    $mail->Port       = 465;                                    
+
+                    // Recipients
+                    $mail->setFrom('jingwenng0320@gmail.com', 'SkinMate Support');
+                    $mail->addAddress($row['email']);
+
+                    // Content
+                    $mail->isHTML(true);                                  
+                    $mail->Subject = 'Your Admin Access TAC';
+                    $mail->Body    = "Your verification code is: $otp. <br><br>This code expires in 5 minutes.";
+                    $mail->AltBody = "Your verification code is: $otp. <br><br>This code expires in 5 minutes.";
+
+                    $mail->send();
+                } catch (Exception $e) {
+                    $error = "Mail could not be sent. Mailer Error: {$mail->ErrorInfo}";
+                    $_SERVER['REQUEST_METHOD'] = 'GET';                }
+                
+                $_SESSION['temp_admin_id'] = $row['id'];
+                header("Location: verify_tac.php");
                 exit;
             } else {
                 $error = "Invalid username or password. hint: check your credentials and try again.";
