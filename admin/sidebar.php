@@ -180,7 +180,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </nav>
 
     <div class="p-4 border-t border-stone-200/60 space-y-1">
-        <a class="text-stone-400 dark:text-stone-600 mx-2 px-4 py-2 flex items-center gap-3 text-xs uppercase tracking-widest hover:text-orange-700 transition-colors" href="index.php?action=logout">
+        <a 
+            class="text-stone-400 dark:text-stone-600 mx-2 px-4 py-2 flex items-center gap-3 text-xs uppercase tracking-widest hover:text-orange-700 transition-colors" 
+            href="index.php?action=logout"
+            onclick="return confirm('Are you sure you want to logout?');"
+        >
             <span class="material-symbols-outlined text-lg">logout</span>
             <span>Logout</span>
         </a>
