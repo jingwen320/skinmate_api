@@ -1,22 +1,30 @@
 <?php
+if (ob_get_level()) ob_end_clean();
 header('Content-Type: text/event-stream');
 header('Cache-Control: no-cache');
 header('Connection: keep-alive');
 header('Access-Control-Allow-Origin: *');
+header('X-Accel-Buffering: no'); 
 
 include 'db.php';
 
-$user_id = $_GET['user_id'] ?? '';
-
-if (!$user_id) {
-    echo "data: " . json_encode(['status' => 'error', 'message' => 'Missing User Identity']) . "\n\n";
+$user_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 0;
+if ($user_id === 0) {
+    echo "data: " . json_encode(['status' => 'error', 'message' => 'Invalid ID']) . "\n\n";
     exit;
 }
 
 $last_checked_count = -1;
 
 while (true) {
-    
+    // Break if Flutter has disconnected
+    if (connection_aborted()) break;
+
+    if (!$conn->ping()) {
+        $conn->close();
+        include 'db.php'; 
+    }
+
     $stmt = $conn->prepare("SELECT COUNT(*) as unread_count FROM notifications WHERE user_id = ? AND is_read = 0");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
@@ -44,10 +52,9 @@ while (true) {
             'notifications' => $notifications
         ]) . "\n\n";
 
-        ob_flush();
         flush();
     }
 
-    sleep(2);
+    sleep(10);
 }
 ?>
