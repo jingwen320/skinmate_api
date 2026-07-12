@@ -177,6 +177,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' <?php echo ($current_page === 'refunds.php') ? '1' : '0'; ?>;">assignment_return</span>
             <span>Refunds</span>
         </a>
+
+        <!-- Settings Tab -->
+        <a class="mx-2 px-4 py-3 flex items-center gap-3 rounded-xl transition-all <?php echo ($current_page === 'settings.php') ? 'bg-orange-100/50 dark:bg-orange-900/20 text-orange-900 dark:text-orange-100 translate-x-1 font-bold' : 'text-stone-600 dark:text-stone-400 hover:bg-orange-50 dark:hover:bg-stone-800'; ?>" href="settings.php">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' <?php echo ($current_page === 'settings.php') ? '1' : '0'; ?>;">settings</span>
+            <span>Settings</span>
+        </a>
     </nav>
 
     <div class="p-4 border-t border-stone-200/60 space-y-1">
