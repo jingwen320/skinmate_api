@@ -614,8 +614,8 @@ $pending_requests_count = $counts['Pending'];
 
         document.getElementById('status_update').addEventListener('change', function() {
             const saveBtn = document.getElementById('saveBtn');
-            // Disable the button if the selected value is 'Cancelled' or 'Pending'
-            if (this.value === 'Cancelled' || this.value === 'Pending') {
+            // Disable the button if the selected value is 'Cancelled'
+            if (this.value === 'Cancelled') {
                 saveBtn.disabled = true;
             } else {
                 saveBtn.disabled = false;
