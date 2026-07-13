@@ -101,6 +101,7 @@
                         </div>
                     </div>
                     <h4 id="context-user-name" class="text-lg font-bold">-</h4>
+                    <p class="text-xs text-stone-500 font-mono"><span id="context-user-id"></span></p>
                     <p id="context-user-joined" class="text-xs text-on-surface-variant">Gathering details...</p>
                 </div>
                 
@@ -459,6 +460,7 @@
                 if (context.status === 'success') {
                     // 1. Update Join Meta Strings & Order Counts
                     document.getElementById('context-user-joined').innerText = context.joined;
+                    document.getElementById('context-user-id').innerText = `#SK-${userId}-UA`;
                     document.getElementById('context-user-lifetime').innerText = `${context.lifetime_value}`;
                     document.getElementById('context-user-orders').innerText = context.total_orders;
 
@@ -628,6 +630,7 @@
             document.getElementById('header-user-name').innerText = "Select a Room";
             document.getElementById('header-room-id-label').innerText = "Waiting for connection...";
             document.getElementById('context-user-name').innerText = "-";
+            document.getElementById('context-user-id').innerText = "";
             document.getElementById('context-user-joined').innerText = "Gathering details...";
             document.getElementById('context-user-lifetime').innerText = "RM 0.00";
             document.getElementById('context-user-orders').innerText = "0";
