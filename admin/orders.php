@@ -360,7 +360,7 @@ if (!empty($orders_list)) {
                                                         </div>
                                                     </td>
                                                     
-                                                    <td class="w-[20%] px-4 py-4 bg-surface-container-lowest text-xs text-stone-500 transition-all <?php echo $is_active_selection ? 'border-y-2 border-primary/40' : ''; ?>"><?php echo date('M d, Y H:i A', strtotime($row_order['order_date'])); ?></td>
+                                                    <td class="w-[20%] px-4 py-4 bg-surface-container-lowest text-xs text-stone-500 transition-all <?php echo $is_active_selection ? 'border-y-2 border-primary/40' : ''; ?>"><?php echo date('M d, Y g:i A', strtotime($row_order['order_date'])); ?></td>
                                                     
                                                     <td class="w-[20%] px-4 py-4 bg-surface-container-lowest transition-all <?php echo $is_active_selection ? 'border-y-2 border-primary/40' : ''; ?>">
                                                         <span class="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full whitespace-nowrap <?php echo $status_style; ?>">
