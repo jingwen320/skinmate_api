@@ -83,7 +83,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
             
         <div class="grid grid-cols-12 gap-6">
             <!-- Distribution Visualizing Area -->
-            <div class="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl p-8 shadow-sm">
+            <div class="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl p-6 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <h4 class="text-lg font-bold text-on-surface">Revenue Analytics</h4>
                     <div class="flex gap-1 bg-stone-100 p-1 rounded-lg w-fit">
@@ -102,7 +102,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                 </div>
             </div>
 
-            <div class="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-stone-200">
+            <div class="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <h4 class="text-lg font-bold text-on-surface">Top 3 Best-Selling</h4>
                     <select id="leaderboard-period" onchange="loadLeaderboard(this.value)" 
