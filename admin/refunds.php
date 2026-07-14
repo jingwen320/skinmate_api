@@ -8,6 +8,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$date_filter = isset($_GET['date_filter']) ? trim($_GET['date_filter']) : '';
 $active_tab = isset($_GET['tab']) ? trim($_GET['tab']) : 'pending'; 
 $sub_status = isset($_GET['sub_status']) ? trim($_GET['sub_status']) : 'All';
 
@@ -24,6 +25,12 @@ $types = "";
 if ($active_tab !== 'all') {
     $sql .= " AND r.status = ?";
     $params[] = $status_map[$active_tab] ?? 'Pending';
+    $types .= "s";
+}
+
+if ($date_filter !== '') {
+    $sql .= " AND DATE(r.created_at) = ?";
+    $params[] = $date_filter;
     $types .= "s";
 }
 
@@ -105,21 +112,37 @@ $pending_requests_count = $counts['Pending'];
 
 $search_counts = ['Pending' => 0, 'Approved' => 0, 'Rejected' => 0, 'Cancelled' => 0];
 
-if ($search_query !== '') {
+if ($search_query !== '' || $date_filter !== '') {
     $s_query = "SELECT status, COUNT(*) as cnt 
                 FROM (
                     SELECT r.status 
                     FROM refund_requests r 
                     LEFT JOIN products p ON r.product_id = p.id 
-                    WHERE (r.order_id LIKE ? OR r.reason LIKE ? OR r.user_id LIKE ? OR r.id LIKE ? OR p.name LIKE ?)
-                    GROUP BY r.order_id, r.created_at, r.status
+                    WHERE 1=1 ";
+    
+    $params = [];
+    $types = "";
+
+    if ($search_query !== '') {
+        $s_query .= " AND (r.order_id LIKE ? OR r.reason LIKE ? OR r.user_id LIKE ? OR r.id LIKE ? OR p.name LIKE ?)";
+        $like = '%' . $search_query . '%';
+        $clean_like = '%' . preg_replace('/^ref-/i', '', $search_query) . '%';
+        $params = [$like, $like, $like, $clean_like, $like];
+        $types = "sssss";
+    }
+
+    if ($date_filter !== '') {
+        $s_query .= " AND DATE(r.created_at) = ?";
+        $params[] = $date_filter;
+        $types .= "s";
+    }
+
+    $s_query .= " GROUP BY r.order_id, r.created_at, r.status
                 ) as sub 
                 GROUP BY status";
     
     $stmt = $conn->prepare($s_query);
-    $like = '%' . $search_query . '%';
-    $clean_like = '%' . preg_replace('/^ref-/i', '', $search_query) . '%';
-    $stmt->bind_param("sssss", $like, $like, $like, $clean_like, $like);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $res = $stmt->get_result();
     while($row = $res->fetch_assoc()) { 
@@ -292,6 +315,12 @@ if ($search_query !== '') {
             </div>
 
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <?php
+                $params_array = [];
+                if (!empty($search_query)) $params_array['search'] = $search_query;
+                if (!empty($date_filter)) $params_array['date_filter'] = $date_filter;
+                $query_string = !empty($params_array) ? '&' . http_build_query($params_array) : '';
+                ?>
                 <form method="GET" action="refunds.php" class="flex gap-2 w-full md:w-auto">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($active_tab); ?>">
                     <div class="relative min-w-[320px] flex-1 md:flex-initial">
@@ -306,6 +335,14 @@ if ($search_query !== '') {
                         <a href="refunds.php?tab=<?php echo urlencode($active_tab); ?>" class="px-4 py-2.5 bg-surface-container-low border border-surface-container-high text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center hover:bg-surface-container-high transition-colors">Clear</a>
                     <?php endif; ?>
                 </form>
+
+                <div class="relative min-w-[150px]">
+                    <input type="date" 
+                        id="date-filter-input"
+                        value="<?php echo htmlspecialchars($date_filter); ?>" 
+                        onchange="applyDateFilter(this.value)"
+                        class="w-full px-3 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold text-stone-600 focus:outline-none focus:border-primary transition-all">
+                </div>
             </div>
 
             <!-- Dashboard Main Grid Container -->
@@ -324,7 +361,7 @@ if ($search_query !== '') {
                     foreach ($tabs as $key => $label): 
                         $display_count = ($key === 'all') ? array_sum($search_counts) : ($search_counts[$label] ?? 0);
                     ?>
-                        <a href="refunds.php?tab=<?php echo $key; ?>&search=<?php echo urlencode($search_query); ?>" 
+                        <a href="refunds.php?tab=<?php echo $key . $query_string; ?>" 
                         class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all 
                         <?php echo $active_tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
                             <?php echo $label; ?> (<?php echo $display_count; ?>)
@@ -334,13 +371,11 @@ if ($search_query !== '') {
 
                 <?php if ($active_tab === 'all'): ?>
                     <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
-                        
                         <?php 
-                        // Define filters specific to refund context
                         $refund_reasons = ['Received broken', 'Did not receive', 'Allergy'];
                         
-                        // "All" filter for refunds
-                        $all_url = "refunds.php?tab=all" . (!empty($search_query) ? '&search='.urlencode($search_query) : ''); 
+                        // "All" filter URL
+                        $all_url = "refunds.php?tab=all" . $query_string; 
                         ?>
                         
                         <a href="<?php echo $all_url; ?>" 
@@ -351,14 +386,14 @@ if ($search_query !== '') {
                         <?php 
                         foreach ($refund_reasons as $reason): 
                             $is_sub_active = ($sub_status === $reason);
-                            $sub_url = "refunds.php?tab=all&sub_status=" . urlencode($reason) . (!empty($search_query) ? '&search='.urlencode($search_query) : '');
+                            // Append the global query_string here
+                            $sub_url = "refunds.php?tab=all&sub_status=" . urlencode($reason) . $query_string;
                         ?>
                             <a href="<?php echo $sub_url; ?>" 
                             class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap <?php echo $is_sub_active ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
                                 <?php echo $reason; ?>
                             </a>
                         <?php endforeach; ?>
-                        
                     </div>
                 <?php else: ?>
                     <div class="mb-6"></div>
@@ -396,7 +431,7 @@ if ($search_query !== '') {
                                                 elseif ($status === 'Cancelled') { $status_style = 'bg-red-500/10 text-red-600'; }
                                             ?>
                                                 <tr class="group hover:translate-y-[-2px] transition-all cursor-pointer <?php echo $row_bg . ' ' . $border_class; ?>" 
-                                                    onclick="viewRefund('refunds.php?tab=<?php echo urlencode($active_tab); ?>&sub_status=<?php echo urlencode($sub_status); ?>&view=<?php echo urlencode($group['id']); ?>')">
+                                                    onclick="viewRefund('skinmate_api/admin/refunds.php?tab=<?php echo urlencode($active_tab); ?>&sub_status=<?php echo urlencode($sub_status); ?>&view=<?php echo urlencode($group['id']); ?><?php echo $query_string; ?>')">
                                                     
                                                     <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-l-2 border-y-2 border-primary/40' : ''; ?> first:rounded-l-2xl">
                                                         <span class="text-xs font-bold text-stone-900">REF-<?php echo htmlspecialchars($group['id']); ?></span>
@@ -594,20 +629,34 @@ if ($search_query !== '') {
             }
         });
 
+        // function viewRefund(url) {
+        //     sessionStorage.setItem("refunds_scroll_pos", window.scrollY);
+
+        //     const urlParams = new URLSearchParams(window.location.search);
+        //     const search = urlParams.get('search');
+        //     const sub_status = urlParams.get('sub_status');
+
+        //     let newUrl = url;
+        //     if (search) newUrl += '&search=' + encodeURIComponent(search);
+        //     if (sub_status && sub_status !== 'All') { 
+        //         newUrl += '&sub_status=' + encodeURIComponent(sub_status);
+        //     }
+
+        //     window.location.href = newUrl;
+        // }
+
         function viewRefund(url) {
             sessionStorage.setItem("refunds_scroll_pos", window.scrollY);
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const search = urlParams.get('search');
-            const sub_status = urlParams.get('sub_status');
+            const currentParams = new URLSearchParams(window.location.search);
+            const targetUrl = new URL(url, window.location.origin);
+            
+            // Copy existing filters to the new view URL
+            if (currentParams.has('search')) targetUrl.searchParams.set('search', currentParams.get('search'));
+            if (currentParams.has('date_filter')) targetUrl.searchParams.set('date_filter', currentParams.get('date_filter'));
+            if (currentParams.has('sub_status')) targetUrl.searchParams.set('sub_status', currentParams.get('sub_status'));
 
-            let newUrl = url;
-            if (search) newUrl += '&search=' + encodeURIComponent(search);
-            if (sub_status && sub_status !== 'All') { 
-                newUrl += '&sub_status=' + encodeURIComponent(sub_status);
-            }
-
-            window.location.href = newUrl;
+            window.location.href = targetUrl.toString();
         }
 
         function processRefund(refundId, orderId, status) {
@@ -687,6 +736,20 @@ if ($search_query !== '') {
                 saveBtn.disabled = false;
                 saveBtn.innerHTML = originalText;
             });
+        }
+
+        function applyDateFilter(dateValue) {
+            const url = new URL(window.location.href);
+            
+            // Set or clear the date_filter
+            if (dateValue) {
+                url.searchParams.set('date_filter', dateValue);
+            } else {
+                url.searchParams.delete('date_filter');
+            }
+            
+            // Redirect to the updated URL (maintaining tab, search, and sub_status)
+            window.location.href = url.toString();
         }
     </script>
 
