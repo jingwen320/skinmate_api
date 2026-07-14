@@ -327,7 +327,7 @@ if ($search_query !== '' || $date_filter !== '') {
                         <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-xl">search</span>
                         <input type="text" name="search" value="<?php echo htmlspecialchars($search_query); ?>" 
                             placeholder="Search Request ID or User ID..." 
-                            class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-all">
+                            class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-0 transition-all">
                     </div>
                     <button type="submit" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-sm hover:bg-primary-dim transition-all">Search</button>
                     

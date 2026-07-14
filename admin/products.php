@@ -403,14 +403,14 @@ $products_result = $conn->query($query);
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Search Catalog</label>
                         <div class="relative flex items-center">
                             <span class="material-symbols-outlined absolute left-3 text-stone-400 text-xl">search</span>
-                            <input type="text" id="filter_search_input" oninput="executeDataFilterPipeline()" placeholder="Search description, brand, or SKU..." class="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                            <input type="text" id="filter_search_input" oninput="executeDataFilterPipeline()" placeholder="Search description, brand, or SKU..." class="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all ">
                         </div>
                     </div>
 
                     <!-- 2. Brand Selector Matrix -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Brand Group</label>
-                        <select id="filter_brand_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_brand_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">All Brands</option>
                             <!-- PHP script can dynamically generate these values or hardcode your main selections -->
                             <option value="Cetaphil">Cetaphil</option>
@@ -424,7 +424,7 @@ $products_result = $conn->query($query);
                     <!-- 3. Target Formulation Category -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Product Category</label>
-                        <select id="filter_category_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_category_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">All Categories</option>
                             <option value="Cleanser">Cleanser</option>
                             <option value="Toner">Toner</option>
@@ -437,7 +437,7 @@ $products_result = $conn->query($query);
                     <!-- 4. Clinical Skin Suitability Condition -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Skin Suitability</label>
-                        <select id="filter_suitability_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_suitability_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">All Skin Types</option>
                             <option value="Normal">Normal</option>
                             <option value="Oily">Oily</option>
@@ -448,7 +448,7 @@ $products_result = $conn->query($query);
 
                     <div class="col-span-1 flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Stock Status</label>
-                        <select id="filter_status_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_status_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">Show All Items</option>
                             <option value="LOW_STOCK">Low Stock (< 10)</option>
                             <option value="INACTIVE">Inactivated (0)</option>
