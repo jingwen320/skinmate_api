@@ -465,7 +465,7 @@ $products_result = $conn->query($query);
                             <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Maximum Price Budget</label>
                             <span id="price_range_badge" class="text-xs font-extrabold text-primary bg-primary-container px-2 py-0.5 rounded-md">RM 500</span>
                         </div>
-                        <input type="range" id="filter_price_range" min="0" max="500" value="500" oninput="updatePriceIndicatorBadge(this.value); executeDataFilterPipeline();" class="w-full h-1.5 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-primary">
+                        <input type="range" id="filter_price_range" min="0" max="250" value="250" oninput="updatePriceIndicatorBadge(this.value); executeDataFilterPipeline();" class="w-full h-1.5 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-primary">
                     </div>
 
                     <!-- Min Stock Inventory Threshold Track -->
@@ -893,7 +893,7 @@ $products_result = $conn->query($query);
          * Synchronizes UI layout indicators with real-time numeric slide inputs
          */
         function updatePriceIndicatorBadge(value) {
-            document.getElementById('price_range_badge').textContent = '$' + parseFloat(value).toFixed(2);
+            document.getElementById('price_range_badge').textContent = 'RM ' + parseFloat(value).toFixed(0);
         }
 
         function updateStockIndicatorBadge(value) {
@@ -901,7 +901,11 @@ $products_result = $conn->query($query);
         }
 
         function executeDataFilterPipeline() {
-            const searchKeyword  = document.getElementById('filter_search_input').value.toLowerCase().trim();
+            const searchInput = document.getElementById('filter_search_input').value.toLowerCase().trim();
+            // Split by comma or space using Regex
+            const keywords = searchInput.split(/[ ,]+/).filter(k => k.length > 0);
+            
+            // const searchKeyword  = document.getElementById('filter_search_input').value.toLowerCase().trim();
             const selectedBrand  = document.getElementById('filter_brand_select').value;
             const selectCategory = document.getElementById('filter_category_select').value;
             const selectSuit     = document.getElementById('filter_suitability_select').value;
@@ -919,7 +923,11 @@ $products_result = $conn->query($query);
                 const itemPrice       = parseFloat(row.getAttribute('data-price'));
                 const itemStock       = parseInt(row.getAttribute('data-stock'), 10);
 
-                const matchSearch = searchKeyword === "" || itemDescription.includes(searchKeyword) || itemBrand.toLowerCase().includes(searchKeyword);
+                // const matchSearch = searchKeyword === "" || itemDescription.includes(searchKeyword) || itemBrand.toLowerCase().includes(searchKeyword);
+                const matchSearch = keywords.length === 0 || keywords.some(k => 
+                    itemDescription.toLowerCase().includes(k) || 
+                    itemBrand.toLowerCase().includes(k)
+                );
                 const matchBrand  = selectedBrand === "ALL" || itemBrand === selectedBrand;
                 const matchCat    = selectCategory === "ALL" || itemCategory === selectCategory;
                 const matchSuit   = selectSuit === "ALL" || itemSuitability.includes(selectSuit) || itemSuitability === "All Skin Types";
