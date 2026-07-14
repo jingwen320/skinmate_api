@@ -177,7 +177,7 @@ function getSortIcon($column, $current_sort, $current_direction) {
             <div class="flex justify-between items-end">
                 <div>
                     <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">User Directory</h2>
-                    <p class="text-on-surface-variant mt-1">Manage registered user accounts and skincare profiles.</p>
+                    <p class="text-on-surface-variant mt-1">Manage Registered User Accounts & Skincare Profiles</p>
                 </div>
                 <div class="flex gap-4">
                     <div class="bg-surface-container-low px-6 py-3 rounded-xl border-l-4 border-primary">

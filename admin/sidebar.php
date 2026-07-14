@@ -107,7 +107,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <div class="px-8 py-10">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center">
-                <span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                <span class="material-symbols-outlined text-orange-900" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
             </div>
             <div>
                 <h1 class="text-lg font-black text-orange-900 dark:text-orange-50 leading-tight">SkinMate</h1>

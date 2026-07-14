@@ -355,7 +355,7 @@ $products_result = $conn->query($query);
             <div class="flex justify-between items-end mb-10">
                 <div>
                     <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Product Inventory</h2>
-                    <p class="text-on-surface-variant mt-1">Manage your skincare catalog and stock levels.</p>
+                    <p class="text-on-surface-variant mt-1">Manage Skincare Catalog & Stock Levels</p>
                 </div>
                 <div class="flex gap-3">
                     <button onclick="openCreateModal()" class="px-6 py-3 bg-primary text-on-primary text-sm font-bold rounded-full flex items-center gap-2 shadow-lg shadow-primary/20 transition-all duration-200 hover:opacity-95 hover:shadow-xl hover:shadow-primary/30 active:scale-95">

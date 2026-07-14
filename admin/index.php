@@ -45,7 +45,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
         <section class="mb-10">
             <!-- <h2 class="text-3xl font-extrabold text-on-background tracking-tight">Overview Dashboard</h2> -->
             <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Overview Dashboard</h2>
-            <p class="text-on-surface-variant mt-1">System summary and current operational health metrics.</p>
+            <p class="text-on-surface-variant mt-1">System Summary</p>
         </section>
 
         <!-- Bento Grid Metrics -->
@@ -202,7 +202,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                                     <div class="flex-1 min-w-0">
                                         <p class="text-[10px] font-bold text-primary uppercase tracking-widest">${item.brand}</p>
                                         <h5 class="font-bold text-stone-800 text-sm truncate">${item.product_name}</h5>
-                                        <p class="text-[11px] text-stone-500 font-medium">${item.total_sold} units sold</p>
+                                        <div class="flex gap-3 text-[11px] font-medium mt-0.5">
+                                            <span class="text-stone-500">${item.total_sold} units sold</span>
+                                            <span class="text-rose-500 font-bold italic">${item.refund_count} refunds</span>
+                                        </div>
                                     </div>
                                     
                                     <div class="flex items-center justify-center w-8 h-8 rounded-full bg-orange-50 font-bold text-primary text-xs">

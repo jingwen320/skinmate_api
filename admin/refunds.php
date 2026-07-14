@@ -265,7 +265,7 @@ if ($search_query !== '') {
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Refund Requests</h2>
-                    <p class="text-on-surface-variant mt-1">Holistic transactional control dashboard panel and full order items dispatch tracking view.</p>
+                    <p class="text-on-surface-variant mt-1">Manage Consumer Refund Audits</p>
                 </div>
             </div>
 
