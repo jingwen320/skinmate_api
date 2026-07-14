@@ -439,9 +439,9 @@ function getSortIcon($column, $current_sort, $current_direction) {
                                     </div>
                                 </div>
 
-                                <button class="w-full mt-8 border-2 border-primary text-primary py-3 rounded-full font-bold text-sm hover:bg-primary hover:text-on-primary transition-all">
+                                <!-- <button class="w-full mt-8 border-2 border-primary text-primary py-3 rounded-full font-bold text-sm hover:bg-primary hover:text-on-primary transition-all">
                                     Send System Notification
-                                </button>
+                                </button> -->
                             </div>
                         </div>
                     <?php else: ?>
