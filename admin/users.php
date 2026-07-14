@@ -26,30 +26,61 @@ $sort_order = isset($_GET['direction']) && strtoupper($_GET['direction']) === 'A
 $next_direction = ($sort_order === 'DESC') ? 'ASC' : 'DESC';
 $db_sort_column = $allowed_sort_columns[$sort_key];
 
-$query = "SELECT 
-            u.id AS user_id, 
-            u.name, 
-            u.email, 
-            u.created_at AS user_created_at,
-            sp.id AS scan_id,
-            sp.skin_type, 
-            sp.health_score, 
-            sp.acne_pct, 
-            sp.dark_spots_pct, 
-            sp.pigmentation_pct, 
-            sp.pores_pct, 
-            sp.redness_pct, 
-            sp.wrinkles_pct
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+$where_sql = "";
+$params = [];
+$types = "";
+
+if ($search_query !== '') {
+    $where_sql = " WHERE (u.id LIKE ? OR u.name LIKE ? OR u.email LIKE ?)";
+    $like_param = '%' . $search_query . '%';
+    $params = [$like_param, $like_param, $like_param];
+    $types = "sss";
+}
+
+// $query = "SELECT 
+//             u.id AS user_id, 
+//             u.name, 
+//             u.email, 
+//             u.created_at AS user_created_at,
+//             sp.id AS scan_id,
+//             sp.skin_type, 
+//             sp.health_score, 
+//             sp.acne_pct, 
+//             sp.dark_spots_pct, 
+//             sp.pigmentation_pct, 
+//             sp.pores_pct, 
+//             sp.redness_pct, 
+//             sp.wrinkles_pct
+//           FROM users u
+//           LEFT JOIN skin_progress sp ON sp.id = (
+//               SELECT id FROM skin_progress 
+//               WHERE user_id = u.id 
+//               ORDER BY created_at DESC, id DESC 
+//               LIMIT 1
+//           )
+//           ORDER BY {$db_sort_column} {$sort_order}";
+
+$query = "SELECT u.id AS user_id, u.name, u.email, u.created_at AS user_created_at,
+            sp.id AS scan_id, sp.skin_type, sp.health_score, sp.acne_pct, 
+            sp.dark_spots_pct, sp.pigmentation_pct, sp.pores_pct, sp.redness_pct, sp.wrinkles_pct
           FROM users u
           LEFT JOIN skin_progress sp ON sp.id = (
-              SELECT id FROM skin_progress 
-              WHERE user_id = u.id 
-              ORDER BY created_at DESC, id DESC 
-              LIMIT 1
+              SELECT id FROM skin_progress WHERE user_id = u.id 
+              ORDER BY created_at DESC, id DESC LIMIT 1
           )
+          {$where_sql}
           ORDER BY {$db_sort_column} {$sort_order}";
 
-$result = $conn->query($query);
+// $result = $conn->query($query);
+
+$stmt = $conn->prepare($query);
+if ($search_query !== '') {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$result = $stmt->get_result();
 
 $focused_user_id = isset($_GET['view_user']) ? intval($_GET['view_user']) : 0;
 
@@ -187,6 +218,25 @@ function getSortIcon($column, $current_sort, $current_direction) {
                 </div>
             </div>
 
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <form method="GET" action="users.php" class="flex gap-2 w-full md:w-auto">
+                    <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort_key); ?>">
+                    <input type="hidden" name="direction" value="<?php echo htmlspecialchars($sort_order); ?>">
+                    
+                    <div class="relative min-w-[320px] flex-1 md:flex-initial">
+                        <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-xl">search</span>
+                        <input type="text" name="search" value="<?php echo htmlspecialchars($search_query); ?>" 
+                            placeholder="Search by User ID, Name, or Email..." 
+                            class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-0 transition-all">
+                    </div>
+                    <button type="submit" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-sm hover:bg-primary-dim transition-all">Search</button>
+                    
+                    <?php if ($search_query !== ''): ?>
+                        <a href="users.php" class="px-4 py-2.5 bg-surface-container-low border border-surface-container-high text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center hover:bg-surface-container-high transition-colors">Clear</a>
+                    <?php endif; ?>
+                </form>
+            </div>
+
             <div class="grid grid-cols-12 gap-8">
                 
                 <div class="col-span-8 space-y-6">
@@ -206,13 +256,18 @@ function getSortIcon($column, $current_sort, $current_direction) {
                                 <div>Reg. Date</div>
                                 <div class="text-right">Actions</div> -->
 
-                                <a href="?sort=name&direction=<?php echo ($sort_key === 'name') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>" class="col-span-4 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
+                                <a href="?sort=name&direction=<?php echo ($sort_key === 'name') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>&search=<?php echo urlencode($search_query); ?>" 
+                                class="col-span-4 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
                                     User Identity <?php echo getSortIcon('name', $sort_key, $sort_order); ?>
                                 </a>
-                                <a href="?sort=skin_type&direction=<?php echo ($sort_key === 'skin_type') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>" class="col-span-3 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
+
+                                <a href="?sort=skin_type&direction=<?php echo ($sort_key === 'skin_type') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>&search=<?php echo urlencode($search_query); ?>" 
+                                class="col-span-3 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
                                     Skin Type <?php echo getSortIcon('skin_type', $sort_key, $sort_order); ?>
                                 </a>
-                                <a href="?sort=date&direction=<?php echo ($sort_key === 'date') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>" class="col-span-2 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
+
+                                <a href="?sort=date&direction=<?php echo ($sort_key === 'date') ? $next_direction : 'ASC'; ?>&view_user=<?php echo $focused_user_id; ?>&search=<?php echo urlencode($search_query); ?>" 
+                                class="col-span-2 flex items-center gap-1 group cursor-pointer hover:text-stone-700 select-none">
                                     Reg. Date <?php echo getSortIcon('date', $sort_key, $sort_order); ?>
                                 </a>
                                 <div class="col-span-1 text-right">Action</div>
@@ -225,8 +280,9 @@ function getSortIcon($column, $current_sort, $current_direction) {
                                         ? 'bg-primary-container/10 border-2 border-primary-container/30' 
                                         : 'hover:bg-surface-container-low border-2 border-transparent';
                                 ?>
-                                    <div onclick="window.location.href='users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>'" class="grid grid-cols-10 items-center px-4 py-3 rounded-xl border transition-all cursor-pointer <?php echo $row_classes; ?>">
-                                        
+                                    <!-- <div onclick="window.location.href='users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>'" class="grid grid-cols-10 items-center px-4 py-3 rounded-xl border transition-all cursor-pointer <?php echo $row_classes; ?>"> -->
+                                    <div onclick="saveScrollAndRedirect('users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>&search=<?php echo urlencode($search_query); ?>')" 
+                                        class="grid grid-cols-10 items-center px-4 py-3 rounded-xl border transition-all cursor-pointer <?php echo $row_classes; ?>">
                                         <div class="col-span-4 flex items-center gap-3 pr-2">
                                             <div class="w-9 h-9 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold text-xs uppercase flex-shrink-0">
                                                 <?php echo substr($user['name'] ?? 'U', 0, 1); ?>
@@ -248,7 +304,11 @@ function getSortIcon($column, $current_sort, $current_direction) {
                                         </div>
 
                                         <div class="col-span-1 flex justify-end" onclick="event.stopPropagation();">
-                                            <a href="users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>" class="p-1.5 hover:bg-primary/10 rounded-lg text-primary transition-colors">
+                                            <!-- <a href="users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>" class="p-1.5 hover:bg-primary/10 rounded-lg text-primary transition-colors">
+                                                <span class="material-symbols-outlined text-lg">visibility</span>
+                                            </a> -->
+                                            <a href="users.php?view_user=<?php echo $user['user_id']; ?>&sort=<?php echo $sort_key; ?>&direction=<?php echo $sort_order; ?>&search=<?php echo urlencode($search_query); ?>" 
+                                            class="p-1.5 hover:bg-primary/10 rounded-lg text-primary transition-colors">
                                                 <span class="material-symbols-outlined text-lg">visibility</span>
                                             </a>
                                         </div>
@@ -402,7 +462,18 @@ function getSortIcon($column, $current_sort, $current_direction) {
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             fetchActiveUserLatestOrderSummary();
+            const scrollPos = sessionStorage.getItem('scrollPos');
+            if (scrollPos) {
+                window.scrollTo(0, parseInt(scrollPos));
+                // Clear it so it doesn't jump on manual refreshes
+                sessionStorage.removeItem('scrollPos');
+            }
         });
+
+        function saveScrollAndRedirect(url) {
+            sessionStorage.setItem('scrollPos', window.scrollY);
+            window.location.href = url;
+        }
 
         function fetchActiveUserLatestOrderSummary() {
             const container = document.getElementById('async-order-card-container');

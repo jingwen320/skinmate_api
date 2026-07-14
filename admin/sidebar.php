@@ -199,10 +199,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 <!-- TopNavBar Structure -->
 <header class="fixed top-0 right-0 left-72 z-40 bg-white/80 dark:bg-stone-950/80 backdrop-blur-md shadow-sm shadow-orange-900/5 px-6 py-3 flex justify-between items-center font-['Plus_Jakarta_Sans'] text-sm tracking-wide">
-    <div class="flex items-center gap-4 bg-stone-100/50 dark:bg-stone-900/50 rounded-full px-4 py-2 w-96">
+    <!-- <div class="flex items-center gap-4 bg-stone-100/50 dark:bg-stone-900/50 rounded-full px-4 py-2 w-96">
         <span class="material-symbols-outlined text-stone-400">search</span>
         <input class="bg-transparent border-none focus:ring-0 text-sm w-full" placeholder="Search parameters or logs..." type="text"/>
-    </div>
+    </div> -->
+    <div></div>
     
     <div class="flex items-center gap-6">
         <div class="flex items-center gap-3 border-l border-stone-100/20 pl-6">
