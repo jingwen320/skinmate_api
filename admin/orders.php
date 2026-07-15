@@ -96,6 +96,56 @@ if (!empty($orders_list)) {
     // Fallback if parameter invalid
     if (!$selected_order) { $selected_order = $orders_list[0]; }
 }
+
+$search_counts = [
+    'Processing' => 0, 
+    'In Transit' => 0, 
+    'Refund Processing' => 0, 
+    'Delivered' => 0, 
+    'Completed' => 0, 
+    'Cancelled' => 0, 
+    'Refunded' => 0, 
+    'Refund Rejected' => 0
+];
+
+$count_sql = "SELECT status, COUNT(*) as cnt FROM orders WHERE 1=1";
+$count_params = [];
+$count_types = "";
+
+if ($date_filter !== '') {
+    $count_sql .= " AND DATE(order_date) = ?";
+    $count_params[] = $date_filter;
+    $count_types .= "s";
+}
+
+if ($search_query !== '') {
+    $count_sql .= " AND (order_id LIKE ? OR CAST(user_id AS CHAR) LIKE ?)";
+    $like_param = '%' . $search_query . '%';
+    $count_params[] = $like_param;
+    $count_params[] = $like_param;
+    $count_types .= "ss";
+}
+
+$count_sql .= " GROUP BY status";
+
+$stmt = $conn->prepare($count_sql);
+if (!empty($count_params)) {
+    $stmt->bind_param($count_types, ...$count_params);
+}
+$stmt->execute();
+$res = $stmt->get_result();
+while ($row = $res->fetch_assoc()) {
+    $search_counts[$row['status']] = $row['cnt'];
+}
+$stmt->close();
+
+$counts = [
+    'actionable' => $search_counts['Processing'],
+    'active'     => $search_counts['In Transit'],
+    'refund'     => $search_counts['Refund Processing'],
+    'completed'  => $search_counts['Delivered'] + $search_counts['Completed'] + $search_counts['Cancelled'] + $search_counts['Refunded'] + $search_counts['Refund Rejected'],
+    'all'        => array_sum($search_counts)
+];
 ?>
 <!DOCTYPE html>
 <html class="light" lang="en">
@@ -292,26 +342,43 @@ if (!empty($orders_list)) {
                 ?>
                 <!-- Navigation Filter Tabs Strip -->
                 <div class="flex border-b border-surface-container-high gap-2">
-                    <a href="orders.php?tab=actionable<?php echo $query_string; ?>" 
-                    class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'actionable' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Pending
-                    </a>
-                    <a href="orders.php?tab=active<?php echo $query_string; ?>" 
-                    class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'active' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Active
-                    </a>
-                    <a href="orders.php?tab=refund<?php echo $query_string; ?>" 
-                    class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'refund' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Refunds
-                    </a>
-                    <a href="orders.php?tab=completed<?php echo $query_string; ?>" 
-                    class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'completed' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Completed
-                    </a>
-                    <a href="orders.php?tab=all<?php echo $query_string; ?>" 
-                    class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'all' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        All Orders
-                    </a>
+                    <?php 
+                    $tabs = [
+                        'actionable' => ['label' => 'Pending', 'count' => $counts['actionable']],
+                        'active'     => ['label' => 'Active', 'count' => $counts['active']],
+                        'refund'     => ['label' => 'Refunds', 'count' => $counts['refund']],
+                        'completed'  => ['label' => 'Completed', 'count' => $counts['completed']],
+                        'all'        => ['label' => 'All Orders', 'count' => $counts['all']]
+                    ];
+                    
+                    foreach ($tabs as $key => $data): 
+                    ?>
+                        <a href="orders.php?tab=<?php echo $key . $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all 
+                        <?php echo $active_tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            <?php echo $data['label']; ?> (<?php echo $data['count']; ?>)
+                        </a>
+                        <!-- <a href="orders.php?tab=actionable<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'actionable' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Pending
+                        </a>
+                        <a href="orders.php?tab=active<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'active' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Active
+                        </a>
+                        <a href="orders.php?tab=refund<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'refund' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Refunds
+                        </a>
+                        <a href="orders.php?tab=completed<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'completed' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Completed
+                        </a>
+                        <a href="orders.php?tab=all<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'all' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            All Orders
+                        </a> -->
+                    <?php endforeach; ?>
                 </div>
 
                 <?php if ($active_tab === 'completed'): ?>
