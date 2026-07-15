@@ -348,7 +348,7 @@ if ($search_query !== '' || $date_filter !== '') {
             <!-- Dashboard Main Grid Container -->
             <div class="space-y-6">
                 <!-- Navigation Filter Tabs Strip -->
-                <div class="flex border-b border-surface-container-high gap-2">
+                <!-- <div class="flex border-b border-surface-container-high gap-2">
                     <?php 
                     $tabs = [
                         'pending'   => 'Pending',
@@ -367,9 +367,25 @@ if ($search_query !== '' || $date_filter !== '') {
                             <?php echo $label; ?> (<?php echo $display_count; ?>)
                         </a>
                     <?php endforeach; ?>
+                </div> -->
+
+                <div class="flex border-b border-surface-container-high gap-2">
+                    <?php 
+                    foreach ($tabs as $key => $label): 
+                        $display_count = ($key === 'all') ? array_sum($search_counts) : ($search_counts[$label] ?? 0);
+                        // Build the target URL
+                        $target_url = "skinmate_api/admin/refunds.php?tab=" . $key;
+                    ?>
+                        <a href="javascript:void(0)" 
+                        onclick="viewRefund('<?php echo $target_url; ?>')"
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all 
+                        <?php echo $active_tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            <?php echo $label; ?> (<?php echo $display_count; ?>)
+                        </a>
+                    <?php endforeach; ?>
                 </div>
 
-                <?php if ($active_tab === 'all'): ?>
+                <!-- <?php if ($active_tab === 'all'): ?>
                     <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
                         <?php 
                         $refund_reasons = ['Received broken', 'Did not receive', 'Allergy'];
@@ -397,6 +413,35 @@ if ($search_query !== '' || $date_filter !== '') {
                     </div>
                 <?php else: ?>
                     <div class="mb-6"></div>
+                <?php endif; ?> -->
+
+                <?php if ($active_tab === 'all'): ?>
+                    <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
+
+                        <?php 
+                        $refund_reasons = ['Received broken', 'Did not receive', 'Allergy'];
+                        ?>
+                        
+                        <a href="javascript:void(0)" 
+                        onclick="viewRefund('skinmate_api/admin/refunds.php?tab=all&sub_status=All')"
+                        class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap 
+                        <?php echo ($sub_status === 'All' || empty($sub_status)) ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
+                            All
+                        </a>
+
+                        <?php 
+                        foreach ($refund_reasons as $reason): 
+                            $is_sub_active = ($sub_status === $reason);
+                            $sub_target_url = "skinmate_api/admin/refunds.php?tab=all&sub_status=" . urlencode($reason);
+                        ?>
+                            <a href="javascript:void(0)" 
+                            onclick="viewRefund('<?php echo $sub_target_url; ?>')"
+                            class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap 
+                            <?php echo $is_sub_active ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
+                                <?php echo $reason; ?>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
 
                 <div class="grid grid-cols-12 gap-8 items-start">
@@ -654,7 +699,7 @@ if ($search_query !== '' || $date_filter !== '') {
             // Copy existing filters to the new view URL
             if (currentParams.has('search')) targetUrl.searchParams.set('search', currentParams.get('search'));
             if (currentParams.has('date_filter')) targetUrl.searchParams.set('date_filter', currentParams.get('date_filter'));
-            if (currentParams.has('sub_status')) targetUrl.searchParams.set('sub_status', currentParams.get('sub_status'));
+            // if (currentParams.has('sub_status')) targetUrl.searchParams.set('sub_status', currentParams.get('sub_status'));
 
             window.location.href = targetUrl.toString();
         }
