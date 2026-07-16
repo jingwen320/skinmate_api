@@ -286,6 +286,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
             const data = analyticsData[view];
             if (!data) return;
 
+            const rawValues = data.map(item => Number(item.total));
+            const displayValues = rawValues.map(v => Math.max(0, v));
+
             // Format weekday labels
             const parseLocalDate = (dateString) => {
                 const [year, month, day] = dateString.split("-").map(Number);
@@ -338,12 +341,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 
                     datasets: [{
                         label: "Revenue (RM)",
-                        data: values,
+                        // data: values,
+                        data: displayValues,
 
                         // borderColor: "#fe9d7f",
 
+                        // borderColor: view === "weekly"
+                        //     ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f"))
+                        //     : "#fe9d7f",
+
                         borderColor: view === "weekly"
-                            ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f"))
+                            ? data.map(item => {
+                                const val = parseFloat(item.total);
+                                if (val < 0) return "#fb7185"; // Loss color
+                                if (val === 0) return "#e5e7eb"; // No activity color
+                                return "#fe9d7f"; // Revenue color
+                            })
                             : "#fe9d7f",
                         borderWidth: 2,
 
@@ -354,8 +367,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                         //         ? "#fe9d7f"
                         //         : "rgba(249,115,22,0.2)",
 
+                        // backgroundColor: view === "weekly" 
+                        //     ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f")) 
+                        //     : "rgba(249,115,22,0.2)",
+
                         backgroundColor: view === "weekly" 
-                            ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f")) 
+                            ? rawValues.map(v => (v < 0 ? "#fb7185" : (v === 0 ? "#e5e7eb" : "#fe9d7f"))) 
                             : "rgba(249,115,22,0.2)",
 
                         borderRadius: view === "weekly"
@@ -422,6 +439,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                     plugins: {
                         legend: {
                             display: false
+                        },
+
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let val = rawValues[context.dataIndex]; 
+                                    return val < 0 
+                                        ? `Net Loss: RM ${Math.abs(val).toFixed(2)}` 
+                                        : `Revenue: RM ${val.toFixed(2)}`;
+                                }
+                            }
                         }
                     }
                 }
