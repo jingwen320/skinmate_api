@@ -86,6 +86,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
             <div class="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl p-6 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <h4 class="text-lg font-bold text-on-surface">Revenue Analytics</h4>
+                    <!-- <div class="flex items-center gap-2">
+                        <button onclick="changeWeek(-1)" class="text-stone-400 hover:text-primary"><</button>
+                        <span id="weekLabel" class="text-xs font-bold text-stone-600 uppercase">This Week</span>
+                        <button onclick="changeWeek(1)" class="text-stone-400 hover:text-primary disabled:opacity-30" id="nextWeekBtn" disabled>></button>
+                    </div> -->
+                    <div id="weekSelector" class="flex items-center gap-2">
+                        <button onclick="changeWeek(-1)" class="text-stone-400 hover:text-primary"><</button>
+                        <span id="weekLabel" class="text-xs font-bold text-stone-600 uppercase">This Week</span>
+                        <button onclick="changeWeek(1)" class="text-stone-400 hover:text-primary disabled:opacity-30" id="nextWeekBtn" disabled>></button>
+                    </div>
                     <div class="flex gap-1 bg-stone-100 p-1 rounded-lg w-fit">
                         <button id="weekBtn" onclick="updateChart('weekly')" 
                             class="px-4 py-1.5 rounded-md font-bold text-sm transition-all duration-300 bg-white shadow-sm text-primary">
@@ -122,6 +132,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
     <script>
         let myChart;
         let analyticsData;
+
+        let currentWeekOffset = 0;
 
         document.addEventListener("DOMContentLoaded", () => {
             fetch('backend/get_analytics.php') 
@@ -168,6 +180,34 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 
             loadLeaderboard('monthly');
         });
+
+        function changeWeek(direction) {
+            currentWeekOffset += direction;
+            document.getElementById('nextWeekBtn').disabled = (currentWeekOffset === 0);
+            
+            // Fetch updated data
+            fetch(`backend/get_analytics.php?week_offset=${currentWeekOffset}`)
+                .then(r => r.json())
+                .then(data => {
+                    analyticsData.weekly = data.charts.weekly;
+                    updateChart('weekly');
+                    updateWeekLabel();
+                });
+        }
+
+        function updateWeekLabel() {
+            const label = document.getElementById('weekLabel');
+            // if (currentWeekOffset === 0) label.innerText = "This Week";
+            // else if (currentWeekOffset === 1) label.innerText = "Last Week";
+            // else label.innerText = `${currentWeekOffset} weeks ago`;
+            if (currentWeekOffset === 0) {
+                label.innerText = "This Week";
+            } else {
+                // Use Math.abs to remove the negative sign
+                const weeks = Math.abs(currentWeekOffset);
+                label.innerText = weeks === 1 ? "1 Week Ago" : `${weeks} Weeks Ago`;
+            }
+        }
 
         function loadLeaderboard(period = 'monthly') {
             const list = document.getElementById('leaderboard-list');
@@ -226,6 +266,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
             // Toggle active button
             const weekBtn = document.getElementById("weekBtn");
             const monthBtn = document.getElementById("monthBtn");
+            const weekSelector = document.getElementById("weekSelector");
 
             const activeClass = ["bg-white", "shadow-sm", "text-on-surface"];
             const inactiveClass = ["text-stone-500", "hover:text-on-surface"];
@@ -233,15 +274,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
             [weekBtn, monthBtn].forEach(btn => btn.classList.remove(...activeClass, ...inactiveClass));
 
             if (view === "weekly") {
+                weekSelector.classList.remove("hidden");
                 weekBtn.classList.add(...activeClass);
                 monthBtn.classList.add(...inactiveClass);
             } else {
+                weekSelector.classList.add("hidden");
                 monthBtn.classList.add(...activeClass);
                 weekBtn.classList.add(...inactiveClass);
             }
 
             const data = analyticsData[view];
             if (!data) return;
+
+            const rawValues = data.map(item => Number(item.total));
+            const displayValues = rawValues.map(v => Math.max(0, v));
 
             // Format weekday labels
             const parseLocalDate = (dateString) => {
@@ -271,6 +317,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 
             if (myChart) {
                 myChart.destroy();
+                // myChart.data.labels = labels;
+                // myChart.data.datasets = datasets;
+                // myChart.options = options;
+                // myChart.update();
+                // return;
             }
 
             myChart = new Chart(ctx, {
@@ -290,12 +341,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 
                     datasets: [{
                         label: "Revenue (RM)",
-                        data: values,
+                        // data: values,
+                        data: displayValues,
 
                         // borderColor: "#fe9d7f",
 
+                        // borderColor: view === "weekly"
+                        //     ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f"))
+                        //     : "#fe9d7f",
+
                         borderColor: view === "weekly"
-                            ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f"))
+                            ? data.map(item => {
+                                const val = parseFloat(item.total);
+                                if (val < 0) return "#fb7185"; // Loss color
+                                if (val === 0) return "#e5e7eb"; // No activity color
+                                return "#fe9d7f"; // Revenue color
+                            })
                             : "#fe9d7f",
                         borderWidth: 2,
 
@@ -306,8 +367,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                         //         ? "#fe9d7f"
                         //         : "rgba(249,115,22,0.2)",
 
+                        // backgroundColor: view === "weekly" 
+                        //     ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f")) 
+                        //     : "rgba(249,115,22,0.2)",
+
                         backgroundColor: view === "weekly" 
-                            ? data.map(item => (parseFloat(item.total) === 0 ? "#e5e7eb" : "#fe9d7f")) 
+                            ? rawValues.map(v => (v < 0 ? "#fb7185" : (v === 0 ? "#e5e7eb" : "#fe9d7f"))) 
                             : "rgba(249,115,22,0.2)",
 
                         borderRadius: view === "weekly"
@@ -334,6 +399,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    },
 
                     scales: {
                         x: {
@@ -369,6 +439,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                     plugins: {
                         legend: {
                             display: false
+                        },
+
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let val = rawValues[context.dataIndex]; 
+                                    return val < 0 
+                                        ? `Net Loss: RM ${Math.abs(val).toFixed(2)}` 
+                                        : `Revenue: RM ${val.toFixed(2)}`;
+                                }
+                            }
                         }
                     }
                 }

@@ -25,38 +25,96 @@ try {
     $stmt_pending = $conn->query("SELECT COUNT(*) FROM orders WHERE status = 'Processing'");
     $pending_orders = $stmt_pending->fetch_row()[0];
 
-    $weekly_data = [];
+    // $weekly_data = [];
 
-    $monday = strtotime('monday this week');
+    // $monday = strtotime('monday this week');
 
-    for ($i = 0; $i < 7; $i++) {
-        $date = date('Y-m-d', strtotime("+$i day", $monday));
-        $weekly_data[$date] = 0;
-    }
+    // for ($i = 0; $i < 7; $i++) {
+    //     $date = date('Y-m-d', strtotime("+$i day", $monday));
+    //     $weekly_data[$date] = 0;
+    // }
 
-    $stmt_weekly = $conn->query("
-        SELECT o.date, (o.gross_total - IFNULL(r.refunded, 0)) as net_total
+    // $stmt_weekly = $conn->query("
+    //     SELECT o.date, (o.gross_total - IFNULL(r.refunded, 0)) as net_total
+    //     FROM (
+    //         SELECT DATE(order_date) as date, SUM(final_total) as gross_total 
+    //         FROM orders 
+    //         WHERE order_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
+    //         AND status IN ('Completed', 'Refund Rejected')
+    //         GROUP BY DATE(order_date)
+    //     ) o
+    //     LEFT JOIN (
+    //         SELECT DATE(created_at) as date, SUM(refund_amount) as refunded 
+    //         FROM refund_requests 
+    //         WHERE status = 'Approved' 
+    //         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    //         GROUP BY DATE(created_at)
+    //     ) r ON o.date = r.date
+    // ");
+
+    // while ($row = $stmt_weekly->fetch_assoc()) {
+    //     if (array_key_exists($row['date'], $weekly_data)) {
+    //         $weekly_data[$row['date']] = (float)$row['net_total'];
+    //     }
+    // }
+
+    $week_offset = isset($_GET['week_offset']) ? (int)$_GET['week_offset'] : 0;
+    $start_date = date('Y-m-d', strtotime("monday this week -$week_offset week"));
+    $end_date = date('Y-m-d', strtotime("$start_date +6 days"));
+
+    // $stmt_weekly = $conn->prepare("
+    //     SELECT o.date, (o.gross_total - IFNULL(r.refunded, 0)) as net_total
+    //     FROM (
+    //         SELECT DATE(order_date) as date, SUM(final_total) as gross_total 
+    //         FROM orders 
+    //         WHERE order_date BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+    //         AND status IN ('Completed', 'Refund Rejected')
+    //         GROUP BY DATE(order_date)
+    //     ) o
+    //     LEFT JOIN (
+    //         SELECT DATE(created_at) as date, SUM(refund_amount) as refunded 
+    //         FROM refund_requests 
+    //         WHERE status = 'Approved' 
+    //         AND created_at BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+    //         GROUP BY DATE(created_at)
+    //     ) r ON o.date = r.date
+    // ");
+    // $stmt_weekly->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+
+    $stmt_weekly = $conn->prepare("
+        SELECT d.date, 
+            (IFNULL(o.gross, 0) - IFNULL(r.refunded, 0)) as net_total
         FROM (
-            SELECT DATE(order_date) as date, SUM(final_total) as gross_total 
-            FROM orders 
-            WHERE order_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
-            AND status IN ('Completed', 'Refund Rejected')
+            SELECT DATE(order_date) as date FROM orders WHERE order_date BETWEEN ? AND ?
+            UNION
+            SELECT DATE(created_at) as date FROM refund_requests WHERE created_at BETWEEN ? AND ?
+        ) d
+        LEFT JOIN (
+            SELECT DATE(order_date) as date, SUM(final_total) as gross 
+            FROM orders WHERE status IN ('Completed', 'Refund Rejected') 
             GROUP BY DATE(order_date)
-        ) o
+        ) o ON d.date = o.date
         LEFT JOIN (
             SELECT DATE(created_at) as date, SUM(refund_amount) as refunded 
-            FROM refund_requests 
-            WHERE status = 'Approved' 
-            AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            FROM refund_requests WHERE status = 'Approved' 
             GROUP BY DATE(created_at)
-        ) r ON o.date = r.date
+        ) r ON d.date = r.date
+        WHERE d.date BETWEEN ? AND ?
     ");
+    $stmt_weekly->bind_param("ssssss", $start_date, $end_date, $start_date, $end_date, $start_date, $end_date);
+    $stmt_weekly->execute();
+    $res_weekly = $stmt_weekly->get_result();
 
-    while ($row = $stmt_weekly->fetch_assoc()) {
-        if (array_key_exists($row['date'], $weekly_data)) {
-            $weekly_data[$row['date']] = (float)$row['net_total'];
-        }
+    $weekly_data = [];
+    for ($i = 0; $i < 7; $i++) {
+        $date = date('Y-m-d', strtotime("+$i day", strtotime($start_date)));
+        $weekly_data[$date] = 0;
     }
+    while ($row = $res_weekly->fetch_assoc()) {
+        $weekly_data[$row['date']] = (float)$row['net_total'];
+    }
+
+    // error_log("Weekly Data for July: " . print_r($weekly_data, true));
 
     $formatted_weekly = [];
     foreach ($weekly_data as $date => $total) {
@@ -95,6 +153,8 @@ try {
             $monthly_data[$row['month']] = (float)$row['net_total'];
         }
     }
+
+    // error_log("Monthly Data for July: " . $monthly_data['2026-07']);
 
     $formatted_monthly = [];
 
