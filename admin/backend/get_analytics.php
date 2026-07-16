@@ -114,7 +114,7 @@ try {
         $weekly_data[$row['date']] = (float)$row['net_total'];
     }
 
-    error_log("Weekly Data for July: " . print_r($weekly_data, true));
+    // error_log("Weekly Data for July: " . print_r($weekly_data, true));
 
     $formatted_weekly = [];
     foreach ($weekly_data as $date => $total) {
@@ -154,7 +154,7 @@ try {
         }
     }
 
-    error_log("Monthly Data for July: " . $monthly_data['2026-07']);
+    // error_log("Monthly Data for July: " . $monthly_data['2026-07']);
 
     $formatted_monthly = [];
 
