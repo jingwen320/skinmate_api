@@ -32,37 +32,70 @@ function parseConcerns($post_concerns) {
  * @param string $brand Selected brand parameter string
  * @param int|string $productId Concrete unique numerical row ID sequence
  */
+// function handleCustomImageUpload($brand, $productId) {
+//     if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+//         $fileTmpPath = $_FILES['image_file']['tmp_name'];
+//         $fileName = $_FILES['image_file']['name'];
+//         $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        
+//         // Permitted extensions validation matrix
+//         $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
+//         if (in_array($fileExtension, $allowedExtensions)) {
+            
+//             // Normalize and clean brand strings to construct clean subfolder names
+//             $cleanBrandFolder = !empty($brand) ? trim($brand) : 'Generic';
+//             $uploadFileDir = '../images/' . $cleanBrandFolder . '/';
+            
+//             // Enforce unified rule: Name the image using the clean Product ID string
+//             $newFileName = $productId . '.' . $fileExtension;
+            
+//             // Automatically build target directory structures if missing on the disk environment
+//             if (!is_dir($uploadFileDir)) {
+//                 mkdir($uploadFileDir, 0755, true);
+//             }
+            
+//             $dest_path = $uploadFileDir . $newFileName;
+            
+//             if (move_uploaded_file($fileTmpPath, $dest_path)) {
+//                 // Returns the brand subfolder prefixed route to database (e.g. "Cetaphil/12.jpg")
+//                 return $cleanBrandFolder . '/' . $newFileName;
+//             }
+//         }
+//     }
+//     return null;
+// }
+
 function handleCustomImageUpload($brand, $productId) {
     if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
         $fileTmpPath = $_FILES['image_file']['tmp_name'];
-        $fileName = $_FILES['image_file']['name'];
-        $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $fileExtension = strtolower(pathinfo($_FILES['image_file']['name'], PATHINFO_EXTENSION));
         
-        // Permitted extensions validation matrix
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
         if (in_array($fileExtension, $allowedExtensions)) {
             
-            // Normalize and clean brand strings to construct clean subfolder names
             $cleanBrandFolder = !empty($brand) ? trim($brand) : 'Generic';
             $uploadFileDir = '../images/' . $cleanBrandFolder . '/';
             
-            // Enforce unified rule: Name the image using the clean Product ID string
-            $newFileName = $productId . '.' . $fileExtension;
-            
-            // Automatically build target directory structures if missing on the disk environment
             if (!is_dir($uploadFileDir)) {
                 mkdir($uploadFileDir, 0755, true);
             }
             
+            foreach ($allowedExtensions as $ext) {
+                $oldFile = $uploadFileDir . $productId . '.' . $ext;
+                if (file_exists($oldFile)) {
+                    unlink($oldFile);
+                }
+            }
+            
+            $newFileName = $productId . '.' . $fileExtension;
             $dest_path = $uploadFileDir . $newFileName;
             
             if (move_uploaded_file($fileTmpPath, $dest_path)) {
-                // Returns the brand subfolder prefixed route to database (e.g. "Cetaphil/12.jpg")
                 return $cleanBrandFolder . '/' . $newFileName;
             }
         }
     }
-    return null;
+    return null; 
 }
 
 // 📥 ACTION: Create New Product 
@@ -124,7 +157,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     $existing_image = !empty(trim($_POST['existing_image'])) ? trim($_POST['existing_image']) : null;
 
     // Process file upload dynamically routing to brand folder named after product ID
-    $uploaded_image = handleCustomImageUpload($brand, $id);
+    // $uploaded_image = handleCustomImageUpload($brand, $id);
+    if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+        $uploaded_image = handleCustomImageUpload($brand, $id);
+    } else {
+        $uploaded_image = null;
+    }
     $image = (!empty($uploaded_image)) ? $uploaded_image : $existing_image;
 
     // Parse checkboxes array strictly into a flat string for the description column
@@ -463,7 +501,7 @@ $products_result = $conn->query($query);
                     <div class="flex flex-col gap-1.5 colspan-2">
                         <div class="flex justify-between items-center">
                             <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Maximum Price Budget</label>
-                            <span id="price_range_badge" class="text-xs font-extrabold text-primary bg-primary-container px-2 py-0.5 rounded-md">RM 500</span>
+                            <span id="price_range_badge" class="text-xs font-extrabold text-primary bg-primary-container px-2 py-0.5 rounded-md">RM 250</span>
                         </div>
                         <input type="range" id="filter_price_range" min="0" max="250" value="250" oninput="updatePriceIndicatorBadge(this.value); executeDataFilterPipeline();" class="w-full h-1.5 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-primary">
                     </div>
@@ -609,7 +647,7 @@ $products_result = $conn->query($query);
                                             </div>
                                         </td>
                                         <td class="px-6 py-6">
-                                            <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
+                                            <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase truncate">
                                                 <?php echo htmlspecialchars($prod['category']); ?>
                                             </span>
                                         </td>
@@ -879,7 +917,7 @@ $products_result = $conn->query($query);
             }
 
             document.getElementById('modalTitle').innerText = "Modify Product Parameters";
-            document.getElementById('modalSubtitle').innerText = "Adjust formula specifications, values, and inventory status flags.";
+            document.getElementById('modalSubtitle').innerText = "Adjust product specifications, prices, and inventory status.";
             document.getElementById('formSubmitButton').innerText = "Apply Updates";
 
             targetModal.classList.remove('hidden');
