@@ -62,24 +62,46 @@ try {
     $start_date = date('Y-m-d', strtotime("monday this week -$week_offset week"));
     $end_date = date('Y-m-d', strtotime("$start_date +6 days"));
 
+    // $stmt_weekly = $conn->prepare("
+    //     SELECT o.date, (o.gross_total - IFNULL(r.refunded, 0)) as net_total
+    //     FROM (
+    //         SELECT DATE(order_date) as date, SUM(final_total) as gross_total 
+    //         FROM orders 
+    //         WHERE order_date BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+    //         AND status IN ('Completed', 'Refund Rejected')
+    //         GROUP BY DATE(order_date)
+    //     ) o
+    //     LEFT JOIN (
+    //         SELECT DATE(created_at) as date, SUM(refund_amount) as refunded 
+    //         FROM refund_requests 
+    //         WHERE status = 'Approved' 
+    //         AND created_at BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+    //         GROUP BY DATE(created_at)
+    //     ) r ON o.date = r.date
+    // ");
+    // $stmt_weekly->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+
     $stmt_weekly = $conn->prepare("
-        SELECT o.date, (o.gross_total - IFNULL(r.refunded, 0)) as net_total
+        SELECT d.date, 
+            (IFNULL(o.gross, 0) - IFNULL(r.refunded, 0)) as net_total
         FROM (
-            SELECT DATE(order_date) as date, SUM(final_total) as gross_total 
-            FROM orders 
-            WHERE order_date BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
-            AND status IN ('Completed', 'Refund Rejected')
+            SELECT DATE(order_date) as date FROM orders WHERE order_date BETWEEN ? AND ?
+            UNION
+            SELECT DATE(created_at) as date FROM refund_requests WHERE created_at BETWEEN ? AND ?
+        ) d
+        LEFT JOIN (
+            SELECT DATE(order_date) as date, SUM(final_total) as gross 
+            FROM orders WHERE status IN ('Completed', 'Refund Rejected') 
             GROUP BY DATE(order_date)
-        ) o
+        ) o ON d.date = o.date
         LEFT JOIN (
             SELECT DATE(created_at) as date, SUM(refund_amount) as refunded 
-            FROM refund_requests 
-            WHERE status = 'Approved' 
-            AND created_at BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)
+            FROM refund_requests WHERE status = 'Approved' 
             GROUP BY DATE(created_at)
-        ) r ON o.date = r.date
+        ) r ON d.date = r.date
+        WHERE d.date BETWEEN ? AND ?
     ");
-    $stmt_weekly->bind_param("ssss", $start_date, $end_date, $start_date, $end_date);
+    $stmt_weekly->bind_param("ssssss", $start_date, $end_date, $start_date, $end_date, $start_date, $end_date);
     $stmt_weekly->execute();
     $res_weekly = $stmt_weekly->get_result();
 
@@ -91,6 +113,8 @@ try {
     while ($row = $res_weekly->fetch_assoc()) {
         $weekly_data[$row['date']] = (float)$row['net_total'];
     }
+
+    error_log("Weekly Data for July: " . print_r($weekly_data, true));
 
     $formatted_weekly = [];
     foreach ($weekly_data as $date => $total) {
@@ -129,6 +153,8 @@ try {
             $monthly_data[$row['month']] = (float)$row['net_total'];
         }
     }
+
+    error_log("Monthly Data for July: " . $monthly_data['2026-07']);
 
     $formatted_monthly = [];
 
