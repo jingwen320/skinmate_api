@@ -32,37 +32,70 @@ function parseConcerns($post_concerns) {
  * @param string $brand Selected brand parameter string
  * @param int|string $productId Concrete unique numerical row ID sequence
  */
+// function handleCustomImageUpload($brand, $productId) {
+//     if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+//         $fileTmpPath = $_FILES['image_file']['tmp_name'];
+//         $fileName = $_FILES['image_file']['name'];
+//         $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        
+//         // Permitted extensions validation matrix
+//         $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
+//         if (in_array($fileExtension, $allowedExtensions)) {
+            
+//             // Normalize and clean brand strings to construct clean subfolder names
+//             $cleanBrandFolder = !empty($brand) ? trim($brand) : 'Generic';
+//             $uploadFileDir = '../images/' . $cleanBrandFolder . '/';
+            
+//             // Enforce unified rule: Name the image using the clean Product ID string
+//             $newFileName = $productId . '.' . $fileExtension;
+            
+//             // Automatically build target directory structures if missing on the disk environment
+//             if (!is_dir($uploadFileDir)) {
+//                 mkdir($uploadFileDir, 0755, true);
+//             }
+            
+//             $dest_path = $uploadFileDir . $newFileName;
+            
+//             if (move_uploaded_file($fileTmpPath, $dest_path)) {
+//                 // Returns the brand subfolder prefixed route to database (e.g. "Cetaphil/12.jpg")
+//                 return $cleanBrandFolder . '/' . $newFileName;
+//             }
+//         }
+//     }
+//     return null;
+// }
+
 function handleCustomImageUpload($brand, $productId) {
     if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
         $fileTmpPath = $_FILES['image_file']['tmp_name'];
-        $fileName = $_FILES['image_file']['name'];
-        $fileExtension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $fileExtension = strtolower(pathinfo($_FILES['image_file']['name'], PATHINFO_EXTENSION));
         
-        // Permitted extensions validation matrix
         $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
         if (in_array($fileExtension, $allowedExtensions)) {
             
-            // Normalize and clean brand strings to construct clean subfolder names
             $cleanBrandFolder = !empty($brand) ? trim($brand) : 'Generic';
             $uploadFileDir = '../images/' . $cleanBrandFolder . '/';
             
-            // Enforce unified rule: Name the image using the clean Product ID string
-            $newFileName = $productId . '.' . $fileExtension;
-            
-            // Automatically build target directory structures if missing on the disk environment
             if (!is_dir($uploadFileDir)) {
                 mkdir($uploadFileDir, 0755, true);
             }
             
+            foreach ($allowedExtensions as $ext) {
+                $oldFile = $uploadFileDir . $productId . '.' . $ext;
+                if (file_exists($oldFile)) {
+                    unlink($oldFile);
+                }
+            }
+            
+            $newFileName = $productId . '.' . $fileExtension;
             $dest_path = $uploadFileDir . $newFileName;
             
             if (move_uploaded_file($fileTmpPath, $dest_path)) {
-                // Returns the brand subfolder prefixed route to database (e.g. "Cetaphil/12.jpg")
                 return $cleanBrandFolder . '/' . $newFileName;
             }
         }
     }
-    return null;
+    return null; 
 }
 
 // 📥 ACTION: Create New Product 
@@ -124,7 +157,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     $existing_image = !empty(trim($_POST['existing_image'])) ? trim($_POST['existing_image']) : null;
 
     // Process file upload dynamically routing to brand folder named after product ID
-    $uploaded_image = handleCustomImageUpload($brand, $id);
+    // $uploaded_image = handleCustomImageUpload($brand, $id);
+    if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+        $uploaded_image = handleCustomImageUpload($brand, $id);
+    } else {
+        $uploaded_image = null;
+    }
     $image = (!empty($uploaded_image)) ? $uploaded_image : $existing_image;
 
     // Parse checkboxes array strictly into a flat string for the description column
@@ -355,7 +393,7 @@ $products_result = $conn->query($query);
             <div class="flex justify-between items-end mb-10">
                 <div>
                     <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Product Inventory</h2>
-                    <p class="text-on-surface-variant mt-1">Manage your skincare catalog and stock levels.</p>
+                    <p class="text-on-surface-variant mt-1">Manage Skincare Catalog & Stock Levels</p>
                 </div>
                 <div class="flex gap-3">
                     <button onclick="openCreateModal()" class="px-6 py-3 bg-primary text-on-primary text-sm font-bold rounded-full flex items-center gap-2 shadow-lg shadow-primary/20 transition-all duration-200 hover:opacity-95 hover:shadow-xl hover:shadow-primary/30 active:scale-95">
@@ -397,20 +435,20 @@ $products_result = $conn->query($query);
             <div class="w-full bg-white border border-stone-200 rounded-3xl p-6 mb-6 shadow-sm flex flex-col gap-4">
                 
                 <!-- Top Row: General Text and Categorization Filtering Matrices -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <!-- 1. Global Descriptive Keyword Matching -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Search Catalog</label>
                         <div class="relative flex items-center">
                             <span class="material-symbols-outlined absolute left-3 text-stone-400 text-xl">search</span>
-                            <input type="text" id="filter_search_input" oninput="executeDataFilterPipeline()" placeholder="Search description, brand, or SKU..." class="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                            <input type="text" id="filter_search_input" oninput="executeDataFilterPipeline()" placeholder="Search description, brand, or SKU..." class="w-full pl-10 pr-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all ">
                         </div>
                     </div>
 
                     <!-- 2. Brand Selector Matrix -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Brand Group</label>
-                        <select id="filter_brand_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_brand_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">All Brands</option>
                             <!-- PHP script can dynamically generate these values or hardcode your main selections -->
                             <option value="Cetaphil">Cetaphil</option>
@@ -424,7 +462,7 @@ $products_result = $conn->query($query);
                     <!-- 3. Target Formulation Category -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Product Category</label>
-                        <select id="filter_category_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_category_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">All Categories</option>
                             <option value="Cleanser">Cleanser</option>
                             <option value="Toner">Toner</option>
@@ -437,7 +475,7 @@ $products_result = $conn->query($query);
                     <!-- 4. Clinical Skin Suitability Condition -->
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Skin Suitability</label>
-                        <select id="filter_suitability_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary transition-all">
+                        <select id="filter_suitability_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
                             <option value="ALL">All Skin Types</option>
                             <option value="Normal">Normal</option>
                             <option value="Oily">Oily</option>
@@ -445,17 +483,27 @@ $products_result = $conn->query($query);
                             <option value="Combination">Combination</option>
                         </select>
                     </div>
+
+                    <div class="col-span-1 flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Stock Status</label>
+                        <select id="filter_status_select" onchange="executeDataFilterPipeline()" class="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-0 transition-all">
+                            <option value="ALL">Show All Items</option>
+                            <option value="LOW_STOCK">Low Stock (< 10)</option>
+                            <option value="INACTIVE">Inactivated (0)</option>
+                            <option value="IN_STOCK">Healthy Stock (10+)</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Bottom Row: Numerical Metrics Pipelines (Price & Inventory Stock Tracks) -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-dashed border-stone-100">
                     <!-- Max Price Ceiling Track -->
-                    <div class="flex flex-col gap-1.5">
+                    <div class="flex flex-col gap-1.5 colspan-2">
                         <div class="flex justify-between items-center">
                             <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Maximum Price Budget</label>
-                            <span id="price_range_badge" class="text-xs font-extrabold text-primary bg-primary-container px-2 py-0.5 rounded-md">RM 500</span>
+                            <span id="price_range_badge" class="text-xs font-extrabold text-primary bg-primary-container px-2 py-0.5 rounded-md">RM 250</span>
                         </div>
-                        <input type="range" id="filter_price_range" min="0" max="500" value="500" oninput="updatePriceIndicatorBadge(this.value); executeDataFilterPipeline();" class="w-full h-1.5 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-primary">
+                        <input type="range" id="filter_price_range" min="0" max="250" value="250" oninput="updatePriceIndicatorBadge(this.value); executeDataFilterPipeline();" class="w-full h-1.5 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-primary">
                     </div>
 
                     <!-- Min Stock Inventory Threshold Track -->
@@ -599,7 +647,7 @@ $products_result = $conn->query($query);
                                             </div>
                                         </td>
                                         <td class="px-6 py-6">
-                                            <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase">
+                                            <span class="bg-quaternary-container text-on-tertiary-container text-[10px] font-extrabold px-3 py-1 rounded-full uppercase truncate">
                                                 <?php echo htmlspecialchars($prod['category']); ?>
                                             </span>
                                         </td>
@@ -869,7 +917,7 @@ $products_result = $conn->query($query);
             }
 
             document.getElementById('modalTitle').innerText = "Modify Product Parameters";
-            document.getElementById('modalSubtitle').innerText = "Adjust formula specifications, values, and inventory status flags.";
+            document.getElementById('modalSubtitle').innerText = "Adjust product specifications, prices, and inventory status.";
             document.getElementById('formSubmitButton').innerText = "Apply Updates";
 
             targetModal.classList.remove('hidden');
@@ -883,7 +931,7 @@ $products_result = $conn->query($query);
          * Synchronizes UI layout indicators with real-time numeric slide inputs
          */
         function updatePriceIndicatorBadge(value) {
-            document.getElementById('price_range_badge').textContent = '$' + parseFloat(value).toFixed(2);
+            document.getElementById('price_range_badge').textContent = 'RM ' + parseFloat(value).toFixed(0);
         }
 
         function updateStockIndicatorBadge(value) {
@@ -891,12 +939,17 @@ $products_result = $conn->query($query);
         }
 
         function executeDataFilterPipeline() {
-            const searchKeyword  = document.getElementById('filter_search_input').value.toLowerCase().trim();
+            const searchInput = document.getElementById('filter_search_input').value.toLowerCase().trim();
+            // Split by comma or space using Regex
+            const keywords = searchInput.split(/[ ,]+/).filter(k => k.length > 0);
+            
+            // const searchKeyword  = document.getElementById('filter_search_input').value.toLowerCase().trim();
             const selectedBrand  = document.getElementById('filter_brand_select').value;
             const selectCategory = document.getElementById('filter_category_select').value;
             const selectSuit     = document.getElementById('filter_suitability_select').value;
             const maxAllowedPrice = parseFloat(document.getElementById('filter_price_range').value);
             const minRequiredStock = parseInt(document.getElementById('filter_stock_range').value, 10);
+            const selectStatus = document.getElementById('filter_status_select').value;
 
             const dataRows = document.querySelectorAll('.product-data-row-item');
 
@@ -908,7 +961,11 @@ $products_result = $conn->query($query);
                 const itemPrice       = parseFloat(row.getAttribute('data-price'));
                 const itemStock       = parseInt(row.getAttribute('data-stock'), 10);
 
-                const matchSearch = searchKeyword === "" || itemDescription.includes(searchKeyword) || itemBrand.toLowerCase().includes(searchKeyword);
+                // const matchSearch = searchKeyword === "" || itemDescription.includes(searchKeyword) || itemBrand.toLowerCase().includes(searchKeyword);
+                const matchSearch = keywords.length === 0 || keywords.some(k => 
+                    itemDescription.toLowerCase().includes(k) || 
+                    itemBrand.toLowerCase().includes(k)
+                );
                 const matchBrand  = selectedBrand === "ALL" || itemBrand === selectedBrand;
                 const matchCat    = selectCategory === "ALL" || itemCategory === selectCategory;
                 const matchSuit   = selectSuit === "ALL" || itemSuitability.includes(selectSuit) || itemSuitability === "All Skin Types";
@@ -916,7 +973,16 @@ $products_result = $conn->query($query);
                 const matchPrice  = itemPrice <= maxAllowedPrice;
                 const matchStock  = itemStock >= minRequiredStock;
 
-                if (matchSearch && matchBrand && matchCat && matchSuit && matchPrice && matchStock) {
+                let matchStatus = true;
+                if (selectStatus === "LOW_STOCK") {
+                    matchStatus = itemStock > 0 && itemStock < 10;
+                } else if (selectStatus === "INACTIVE") {
+                    matchStatus = itemStock === 0;
+                } else if (selectStatus === "IN_STOCK") {
+                    matchStatus = itemStock >= 10;
+                }
+
+                if (matchSearch && matchBrand && matchCat && matchSuit && matchPrice && matchStock && matchStatus) {
                     row.style.display = ""; 
 
                     if (itemStock === 0) {

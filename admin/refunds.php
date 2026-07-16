@@ -8,39 +8,40 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$date_filter = isset($_GET['date_filter']) ? trim($_GET['date_filter']) : '';
 $active_tab = isset($_GET['tab']) ? trim($_GET['tab']) : 'pending'; 
 $sub_status = isset($_GET['sub_status']) ? trim($_GET['sub_status']) : 'All';
-$refunds_list = [];
 
-// 1. Map tabs to refund statuses
 $status_map = ['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled'];
 
-// 2. Initialize SQL - Using the dynamic approach
-if ($active_tab === 'all') {
-    $sql = "SELECT r.* FROM refund_requests r WHERE 1=1 GROUP BY r.order_id, r.created_at";
-    $params = [];
-    $types = "";
-} else {
-    $target_status = $status_map[$active_tab] ?? 'Pending';
-    $sql = "SELECT r.* FROM refund_requests r WHERE r.status = ? GROUP BY r.order_id, r.created_at";
-    $params = [$target_status];
-    $types = "s";
+// 1. Optimized Query: Join products to get item details in one go
+$sql = "SELECT r.*, p.name AS product_name, p.brand AS prod_brand, p.image AS prod_image 
+        FROM refund_requests r 
+        LEFT JOIN products p ON r.product_id = p.id 
+        WHERE 1=1";
+$params = [];
+$types = "";
+
+if ($active_tab !== 'all') {
+    $sql .= " AND r.status = ?";
+    $params[] = $status_map[$active_tab] ?? 'Pending';
+    $types .= "s";
 }
 
-// 3. Search logic
+if ($date_filter !== '') {
+    $sql .= " AND DATE(r.created_at) = ?";
+    $params[] = $date_filter;
+    $types .= "s";
+}
+
 if ($search_query !== '') {
     $clean_id = preg_replace('/^ref-/i', '', $search_query);
-    $sql .= " AND (r.order_id LIKE ? OR r.reason LIKE ? OR r.user_id LIKE ? OR r.id LIKE ?)";
-    $like_param = '%' . $search_query . '%';
-    $clean_like_param = '%' . $clean_id . '%';
-    $params[] = $like_param;
-    $params[] = $like_param;
-    $params[] = $like_param;
-    $params[] = $clean_like_param;
-    $types .= "ssss";
+    $sql .= " AND (r.order_id LIKE ? OR r.reason LIKE ? OR r.user_id LIKE ? OR r.id LIKE ? OR p.name LIKE ?)";
+    $like = '%' . $search_query . '%';
+    $params = array_merge($params, [$like, $like, $like, '%' . $clean_id . '%', $like]);
+    $types .= "sssss";
 }
 
-// 4. Sub-status logic (only for 'all' tab)
 if ($active_tab === 'all' && $sub_status !== 'All') {
     $sql .= " AND r.reason = ?";
     $params[] = $sub_status;
@@ -49,44 +50,108 @@ if ($active_tab === 'all' && $sub_status !== 'All') {
 
 $sql .= " ORDER BY r.created_at ASC";
 
-// 5. FETCH DATA (This must happen BEFORE calculating $selected_refund)
+// 2. Fetch and Group in Memory
+$refunds_grouped = [];
 $stmt = $conn->prepare($sql);
 if ($types !== "") $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
+
 while ($row = $result->fetch_assoc()) {
-    $refunds_list[] = $row;
+    $key = $row['order_id'] . '_' . $row['created_at'];
+    if (!isset($refunds_grouped[$key])) {
+        $refunds_grouped[$key] = [
+            'id' => $row['id'], // Representative ID
+            'order_id' => $row['order_id'],
+            'user_id' => $row['user_id'],
+            'created_at' => $row['created_at'],
+            'status' => $row['status'],
+            'reason' => $row['reason'],
+            'description' => $row['description'],
+            'proof_path' => $row['proof_path'],
+            'admin_reply' => $row['admin_reply'],
+            'items' => [] 
+        ];
+    }
+    $refunds_grouped[$key]['items'][] = $row;
 }
 $stmt->close();
 
-// 6. Select active refund
+// 3. Selection Logic
 $selected_refund = null;
-if (!empty($refunds_list)) {
-    $selected_refund_id = isset($_GET['view']) ? (int)$_GET['view'] : $refunds_list[0]['id'];
-    foreach ($refunds_list as $r) {
-        if ((int)$r['id'] === $selected_refund_id) {
-            $selected_refund = $r;
-            break;
+if (!empty($refunds_grouped)) {
+    $first_key = array_key_first($refunds_grouped);
+    $selected_refund = $refunds_grouped[$first_key];
+    if (isset($_GET['view'])) {
+        foreach ($refunds_grouped as $group) {
+            foreach ($group['items'] as $item) {
+                if ((int)$item['id'] === (int)$_GET['view']) {
+                    $selected_refund = $group;
+                    break 2;
+                }
+            }
         }
     }
-    if (!$selected_refund) { $selected_refund = $refunds_list[0]; }
 }
 
-// 7. Counts
 $counts = ['Pending' => 0, 'Approved' => 0, 'Rejected' => 0, 'Cancelled' => 0];
-$count_query = "SELECT status, COUNT(*) as cnt 
+$count_query = "SELECT status, COUNT(*) as cnt
     FROM (
-        SELECT status 
-        FROM refund_requests 
-        GROUP BY order_id, created_at, status
-    ) as unique_requests 
+    SELECT status
+    FROM refund_requests
+    GROUP BY order_id, created_at, status
+    ) as unique_requests
     GROUP BY status";
-if ($res = $conn->query($count_query)) {
-    while($row = $res->fetch_assoc()) { $counts[$row['status']] = $row['cnt']; }
-}
+
+    if ($res = $conn->query($count_query)) {
+        while($row = $res->fetch_assoc()) { $counts[$row['status']] = $row['cnt']; }
+    }
 
 $total_requests_count = array_sum($counts);
 $pending_requests_count = $counts['Pending'];
+
+$search_counts = ['Pending' => 0, 'Approved' => 0, 'Rejected' => 0, 'Cancelled' => 0];
+
+if ($search_query !== '' || $date_filter !== '') {
+    $s_query = "SELECT status, COUNT(*) as cnt 
+                FROM (
+                    SELECT r.status 
+                    FROM refund_requests r 
+                    LEFT JOIN products p ON r.product_id = p.id 
+                    WHERE 1=1 ";
+    
+    $params = [];
+    $types = "";
+
+    if ($search_query !== '') {
+        $s_query .= " AND (r.order_id LIKE ? OR r.reason LIKE ? OR r.user_id LIKE ? OR r.id LIKE ? OR p.name LIKE ?)";
+        $like = '%' . $search_query . '%';
+        $clean_like = '%' . preg_replace('/^ref-/i', '', $search_query) . '%';
+        $params = [$like, $like, $like, $clean_like, $like];
+        $types = "sssss";
+    }
+
+    if ($date_filter !== '') {
+        $s_query .= " AND DATE(r.created_at) = ?";
+        $params[] = $date_filter;
+        $types .= "s";
+    }
+
+    $s_query .= " GROUP BY r.order_id, r.created_at, r.status
+                ) as sub 
+                GROUP BY status";
+    
+    $stmt = $conn->prepare($s_query);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while($row = $res->fetch_assoc()) { 
+        $search_counts[$row['status']] = $row['cnt']; 
+    }
+    $stmt->close();
+} else {
+    $search_counts = $counts;
+}
 ?>
 <!DOCTYPE html>
 <html class="light" lang="en">
@@ -223,7 +288,7 @@ $pending_requests_count = $counts['Pending'];
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Refund Requests</h2>
-                    <p class="text-on-surface-variant mt-1">Holistic transactional control dashboard panel and full order items dispatch tracking view.</p>
+                    <p class="text-on-surface-variant mt-1">Manage Consumer Refund Audits</p>
                 </div>
             </div>
 
@@ -250,13 +315,19 @@ $pending_requests_count = $counts['Pending'];
             </div>
 
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <?php
+                $params_array = [];
+                if (!empty($search_query)) $params_array['search'] = $search_query;
+                if (!empty($date_filter)) $params_array['date_filter'] = $date_filter;
+                $query_string = !empty($params_array) ? '&' . http_build_query($params_array) : '';
+                ?>
                 <form method="GET" action="refunds.php" class="flex gap-2 w-full md:w-auto">
                     <input type="hidden" name="tab" value="<?php echo htmlspecialchars($active_tab); ?>">
                     <div class="relative min-w-[320px] flex-1 md:flex-initial">
                         <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-xl">search</span>
                         <input type="text" name="search" value="<?php echo htmlspecialchars($search_query); ?>" 
                             placeholder="Search Request ID or User ID..." 
-                            class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-all">
+                            class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-0 transition-all">
                     </div>
                     <button type="submit" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-sm hover:bg-primary-dim transition-all">Search</button>
                     
@@ -264,12 +335,20 @@ $pending_requests_count = $counts['Pending'];
                         <a href="refunds.php?tab=<?php echo urlencode($active_tab); ?>" class="px-4 py-2.5 bg-surface-container-low border border-surface-container-high text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center hover:bg-surface-container-high transition-colors">Clear</a>
                     <?php endif; ?>
                 </form>
+
+                <div class="relative min-w-[150px]">
+                    <input type="date" 
+                        id="date-filter-input"
+                        value="<?php echo htmlspecialchars($date_filter); ?>" 
+                        onchange="applyDateFilter(this.value)"
+                        class="w-full px-3 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold text-stone-600 focus:outline-none focus:border-primary transition-all">
+                </div>
             </div>
 
             <!-- Dashboard Main Grid Container -->
             <div class="space-y-6">
                 <!-- Navigation Filter Tabs Strip -->
-                <div class="flex border-b border-surface-container-high gap-2">
+                <!-- <div class="flex border-b border-surface-container-high gap-2">
                     <?php 
                     $tabs = [
                         'pending'   => 'Pending',
@@ -280,10 +359,25 @@ $pending_requests_count = $counts['Pending'];
                     ];
                     
                     foreach ($tabs as $key => $label): 
-                        // Logic to calculate total if key is 'all'
-                        $display_count = ($key === 'all') ? array_sum($counts) : ($counts[$label] ?? 0);
+                        $display_count = ($key === 'all') ? array_sum($search_counts) : ($search_counts[$label] ?? 0);
                     ?>
-                        <a href="refunds.php?tab=<?php echo $key; ?>&search=<?php echo urlencode($search_query); ?>" 
+                        <a href="refunds.php?tab=<?php echo $key . $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all 
+                        <?php echo $active_tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            <?php echo $label; ?> (<?php echo $display_count; ?>)
+                        </a>
+                    <?php endforeach; ?>
+                </div> -->
+
+                <div class="flex border-b border-surface-container-high gap-2">
+                    <?php 
+                    foreach ($tabs as $key => $label): 
+                        $display_count = ($key === 'all') ? array_sum($search_counts) : ($search_counts[$label] ?? 0);
+                        // Build the target URL
+                        $target_url = "skinmate_api/admin/refunds.php?tab=" . $key;
+                    ?>
+                        <a href="javascript:void(0)" 
+                        onclick="viewRefund('<?php echo $target_url; ?>')"
                         class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all 
                         <?php echo $active_tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
                             <?php echo $label; ?> (<?php echo $display_count; ?>)
@@ -291,15 +385,13 @@ $pending_requests_count = $counts['Pending'];
                     <?php endforeach; ?>
                 </div>
 
-                <?php if ($active_tab === 'all'): ?>
+                <!-- <?php if ($active_tab === 'all'): ?>
                     <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
-                        
                         <?php 
-                        // Define filters specific to refund context
                         $refund_reasons = ['Received broken', 'Did not receive', 'Allergy'];
                         
-                        // "All" filter for refunds
-                        $all_url = "refunds.php?tab=all" . (!empty($search_query) ? '&search='.urlencode($search_query) : ''); 
+                        // "All" filter URL
+                        $all_url = "refunds.php?tab=all" . $query_string; 
                         ?>
                         
                         <a href="<?php echo $all_url; ?>" 
@@ -310,17 +402,46 @@ $pending_requests_count = $counts['Pending'];
                         <?php 
                         foreach ($refund_reasons as $reason): 
                             $is_sub_active = ($sub_status === $reason);
-                            $sub_url = "refunds.php?tab=all&sub_status=" . urlencode($reason) . (!empty($search_query) ? '&search='.urlencode($search_query) : '');
+                            // Append the global query_string here
+                            $sub_url = "refunds.php?tab=all&sub_status=" . urlencode($reason) . $query_string;
                         ?>
                             <a href="<?php echo $sub_url; ?>" 
                             class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap <?php echo $is_sub_active ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
                                 <?php echo $reason; ?>
                             </a>
                         <?php endforeach; ?>
-                        
                     </div>
                 <?php else: ?>
                     <div class="mb-6"></div>
+                <?php endif; ?> -->
+
+                <?php if ($active_tab === 'all'): ?>
+                    <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
+
+                        <?php 
+                        $refund_reasons = ['Received broken', 'Did not receive', 'Allergy'];
+                        ?>
+                        
+                        <a href="javascript:void(0)" 
+                        onclick="viewRefund('skinmate_api/admin/refunds.php?tab=all&sub_status=All')"
+                        class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap 
+                        <?php echo ($sub_status === 'All' || empty($sub_status)) ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
+                            All
+                        </a>
+
+                        <?php 
+                        foreach ($refund_reasons as $reason): 
+                            $is_sub_active = ($sub_status === $reason);
+                            $sub_target_url = "skinmate_api/admin/refunds.php?tab=all&sub_status=" . urlencode($reason);
+                        ?>
+                            <a href="javascript:void(0)" 
+                            onclick="viewRefund('<?php echo $sub_target_url; ?>')"
+                            class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap 
+                            <?php echo $is_sub_active ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
+                                <?php echo $reason; ?>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
 
                 <div class="grid grid-cols-12 gap-8 items-start">
@@ -341,59 +462,45 @@ $pending_requests_count = $counts['Pending'];
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php if (!empty($refunds_list)): ?>
-                                            <?php foreach ($refunds_list as $row): 
-                                                // 1. Calculate selection state
-                                                $is_selected = ($selected_refund && (int)$selected_refund['id'] === (int)$row['id']);
+                                        <?php if (!empty($refunds_grouped)): ?>
+                                            <?php foreach ($refunds_grouped as $group): 
+                                                $is_selected = ($selected_refund && $selected_refund['order_id'] === $group['order_id'] && $selected_refund['created_at'] === $group['created_at']);
                                                 
-                                                // 2. Define style based on selection
-                                                $row_bg = $is_selected ? 'bg-surface-container-lowest' : 'bg-surface-container-lowest';
+                                                $row_bg = 'bg-surface-container-lowest';
                                                 $border_class = $is_selected ? 'border-y-2 border-primary/40' : '';
 
-                                                // Status styles
+                                                $status = $group['status'];
                                                 $status_style = 'bg-stone-100 text-stone-700';
-                                                if ($row['status'] === 'Approved') { $status_style = 'bg-green-500/10 text-green-600'; }
-                                                elseif ($row['status'] === 'Rejected') { $status_style = 'bg-red-500/10 text-red-600'; }
-                                                elseif ($row['status'] === 'Cancelled') { $status_style = 'bg-red-500/10 text-red-600'; }
+                                                if ($status === 'Approved') { $status_style = 'bg-green-500/10 text-green-600'; }
+                                                elseif ($status === 'Rejected') { $status_style = 'bg-red-500/10 text-red-600'; }
+                                                elseif ($status === 'Cancelled') { $status_style = 'bg-red-500/10 text-red-600'; }
                                             ?>
-                                                <!-- 3. Apply classes to the row -->
                                                 <tr class="group hover:translate-y-[-2px] transition-all cursor-pointer <?php echo $row_bg . ' ' . $border_class; ?>" 
-                                                    onclick="viewRefund('refunds.php?tab=<?php echo urlencode($active_tab); ?>&sub_status=<?php echo urlencode($sub_status); ?>&view=<?php echo urlencode($row['id']); ?>')">
+                                                    onclick="viewRefund('skinmate_api/admin/refunds.php?tab=<?php echo urlencode($active_tab); ?>&sub_status=<?php echo urlencode($sub_status); ?>&view=<?php echo urlencode($group['id']); ?><?php echo $query_string; ?>')">
                                                     
-                                                    <!-- Use the same $row_bg variable for the columns if needed -->
                                                     <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-l-2 border-y-2 border-primary/40' : ''; ?> first:rounded-l-2xl">
-                                                        <span class="text-xs font-bold text-stone-900">REF-<?php echo htmlspecialchars($row['id']); ?></span>
+                                                        <span class="text-xs font-bold text-stone-900">REF-<?php echo htmlspecialchars($group['id']); ?></span>
                                                     </td>
 
                                                     <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-y-2 border-primary/40' : ''; ?>">
-                                                        <span class="text-xs font-bold text-stone-900">#<?php echo htmlspecialchars($row['order_id']); ?></span>
+                                                        <span class="text-xs font-bold text-stone-900">#<?php echo htmlspecialchars($group['order_id']); ?></span>
                                                     </td>
                                                     
-                                                    <!-- <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-y-2 border-primary/40' : ''; ?>">
-                                                        <span class="text-xs font-medium text-stone-700 truncate">
-                                                            <?php echo htmlspecialchars(strtoupper($row['product_brand']) . ' ' . $row['product_name']); ?>
-                                                        </span>
-                                                    </td> -->
-                                                    
                                                     <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-y-2 border-primary/40' : ''; ?>">
-                                                        <span class="text-xs text-stone-500"><?php echo htmlspecialchars($row['reason']); ?></span>
+                                                        <span class="text-xs text-stone-500"><?php echo htmlspecialchars($group['reason']); ?></span>
                                                     </td>
 
                                                     <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-y-2 border-primary/40' : ''; ?>">
                                                         <span class="text-xs text-stone-500">
-                                                            <?php echo date('M d, Y g:i A', strtotime($row['created_at'])); ?>
+                                                            <?php echo date('M d, Y g:i A', strtotime($group['created_at'])); ?>
                                                         </span>
                                                     </td>
                                                     
                                                     <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-r-2 border-y-2 border-primary/40' : ''; ?> last:rounded-r-2xl">
                                                         <span class="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full <?php echo $status_style; ?>">
-                                                            <?php echo htmlspecialchars($row['status']); ?>
+                                                            <?php echo htmlspecialchars($status); ?>
                                                         </span>
                                                     </td>
-                                                    
-                                                    <!-- <td class="px-4 py-4 <?php echo $row_bg; ?> <?php echo $is_selected ? 'border-r-2 border-y-2 border-primary/40' : ''; ?> last:rounded-r-2xl text-right text-xs font-bold text-stone-800">
-                                                        RM <?php echo number_format($row['refund_amount'], 2); ?>
-                                                    </td> -->
                                                 </tr>
                                             <?php endforeach; ?>
                                         <?php else: ?>
@@ -432,52 +539,43 @@ $pending_requests_count = $counts['Pending'];
                                     <div class="flex justify-between items-center mb-4">
                                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400">Refunded Items</p>
                                         <?php
-                                        $current_order_id = $selected_refund['order_id'];
-                                        $current_user_id = $selected_refund['user_id'];
-                                        $current_created_at = $selected_refund['created_at'];
-
-                                        $items_query = "SELECT r.refund_amount, r.quantity, p.name AS prod_name, p.brand AS prod_brand, p.image AS prod_image,
-                                                        (SELECT SUM(refund_amount) FROM refund_requests WHERE order_id = ? AND user_id = ? AND created_at = ?) as total_refund 
-                                                        FROM refund_requests r 
-                                                        LEFT JOIN products p ON r.product_id = p.id 
-                                                        WHERE r.order_id = ? AND r.user_id = ? AND r.created_at = ?";
-                                        
-                                        $items_stmt = $conn->prepare($items_query);
-                                        $items_stmt->bind_param("ssssss", $current_order_id, $current_user_id, $current_created_at, $current_order_id, $current_user_id, $current_created_at); 
-                                        $items_stmt->execute();
-                                        $items_result = $items_stmt->get_result();
-                                        
-                                        $items = $items_result->fetch_all(MYSQLI_ASSOC);
-                                        $total_refund = !empty($items) ? $items[0]['total_refund'] : 0;
+                                        // Calculate the total from the items already grouped in PHP
+                                        $total_refund = 0;
+                                        foreach ($selected_refund['items'] as $item) {
+                                            $total_refund += $item['refund_amount'];
+                                        }
                                         ?>
                                         <p class="text-sm font-bold text-orange-900">RM <?php echo number_format($total_refund, 2); ?></p>
                                     </div>
 
                                     <div class="space-y-3 max-h-60 overflow-y-auto pr-1">
-                                        <?php if (!empty($items)): 
-                                            foreach ($items as $item): 
+                                        <?php 
+                                        // Iterate directly through the items associated with the selected refund group
+                                        if (!empty($selected_refund['items'])): 
+                                            foreach ($selected_refund['items'] as $item): 
                                                 $prod_brand = !empty($item['prod_brand']) ? strtoupper($item['prod_brand']) : 'SYSTEM ARCHIVE';
-                                                $prod_name = !empty($item['prod_name']) ? $item['prod_name'] : 'Deleted Product Listing';
+                                                $prod_name = !empty($item['product_name']) ? $item['product_name'] : 'Deleted Product Listing';
                                                 $product_thumbnail = !empty($item['prod_image']) ? htmlspecialchars($item['prod_image']) : 'default-product.png';
                                         ?>
-                                                <div class="flex items-center gap-3 p-2 bg-surface-container-low/50 rounded-xl border border-stone-100">
-                                                    <div class="w-12 h-12 rounded-xl bg-surface-container overflow-hidden shrink-0 border border-stone-200/60 relative flex items-center justify-center">
-                                                        <img src="../images/<?php echo $product_thumbnail; ?>" class="absolute inset-0 w-full h-full object-cover object-center" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                                        <span class="material-symbols-outlined text-stone-300 text-sm hidden">image</span>
-                                                    </div>
-                                                    <div class="flex-1 min-w-0">
-                                                        <p class="text-xs font-bold text-stone-900 truncate"><span class="uppercase mr-1"><?php echo htmlspecialchars($prod_brand); ?></span><?php echo htmlspecialchars($prod_name); ?></p>
-                                                        <p class="text-[11px] text-stone-500">Qty: <?php echo $item['quantity']; ?></p>
-                                                    </div>
-                                                    <div class="flex flex-col items-end justify-center shrink-0">
-                                                        <p class="text-xs font-bold text-orange-900">RM <?php echo number_format($item['refund_amount'], 2); ?></p>
-                                                    </div>
+                                            <div class="flex items-center gap-3 p-2 bg-surface-container-low/50 rounded-xl border border-stone-100">
+                                                <div class="w-12 h-12 rounded-xl bg-surface-container overflow-hidden shrink-0 border border-stone-200/60 relative flex items-center justify-center">
+                                                    <img src="../images/<?php echo $product_thumbnail; ?>" class="absolute inset-0 w-full h-full object-cover object-center" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                                    <span class="material-symbols-outlined text-stone-300 text-sm hidden">image</span>
                                                 </div>
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-xs font-bold text-stone-900 truncate">
+                                                        <span class="uppercase mr-1"><?php echo htmlspecialchars($prod_brand); ?></span><?php echo htmlspecialchars($prod_name); ?>
+                                                    </p>
+                                                    <p class="text-[11px] text-stone-500">Qty: <?php echo $item['quantity']; ?></p>
+                                                </div>
+                                                <div class="flex-1 text-right">
+                                                    <p class="text-xs font-bold text-orange-900">RM <?php echo number_format($item['refund_amount'], 2); ?></p>
+                                                </div>
+                                            </div>
                                         <?php endforeach; 
                                         else: ?>
                                             <div class="p-3 text-error rounded-xl text-[11px] font-semibold">No items found.</div>
-                                        <?php endif; 
-                                        $items_stmt->close(); ?>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
@@ -576,9 +674,34 @@ $pending_requests_count = $counts['Pending'];
             }
         });
 
+        // function viewRefund(url) {
+        //     sessionStorage.setItem("refunds_scroll_pos", window.scrollY);
+
+        //     const urlParams = new URLSearchParams(window.location.search);
+        //     const search = urlParams.get('search');
+        //     const sub_status = urlParams.get('sub_status');
+
+        //     let newUrl = url;
+        //     if (search) newUrl += '&search=' + encodeURIComponent(search);
+        //     if (sub_status && sub_status !== 'All') { 
+        //         newUrl += '&sub_status=' + encodeURIComponent(sub_status);
+        //     }
+
+        //     window.location.href = newUrl;
+        // }
+
         function viewRefund(url) {
             sessionStorage.setItem("refunds_scroll_pos", window.scrollY);
-            window.location.href = url;
+
+            const currentParams = new URLSearchParams(window.location.search);
+            const targetUrl = new URL(url, window.location.origin);
+            
+            // Copy existing filters to the new view URL
+            if (currentParams.has('search')) targetUrl.searchParams.set('search', currentParams.get('search'));
+            if (currentParams.has('date_filter')) targetUrl.searchParams.set('date_filter', currentParams.get('date_filter'));
+            // if (currentParams.has('sub_status')) targetUrl.searchParams.set('sub_status', currentParams.get('sub_status'));
+
+            window.location.href = targetUrl.toString();
         }
 
         function processRefund(refundId, orderId, status) {
@@ -658,6 +781,20 @@ $pending_requests_count = $counts['Pending'];
                 saveBtn.disabled = false;
                 saveBtn.innerHTML = originalText;
             });
+        }
+
+        function applyDateFilter(dateValue) {
+            const url = new URL(window.location.href);
+            
+            // Set or clear the date_filter
+            if (dateValue) {
+                url.searchParams.set('date_filter', dateValue);
+            } else {
+                url.searchParams.delete('date_filter');
+            }
+            
+            // Redirect to the updated URL (maintaining tab, search, and sub_status)
+            window.location.href = url.toString();
         }
     </script>
 

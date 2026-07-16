@@ -9,6 +9,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$date_filter = isset($_GET['date_filter']) ? trim($_GET['date_filter']) : '';
 $active_tab = isset($_GET['tab']) ? trim($_GET['tab']) : 'actionable'; 
 $sub_status = isset($_GET['sub_status']) ? trim($_GET['sub_status']) : 'All';
 $orders_list = [];
@@ -34,6 +35,12 @@ if ($active_tab === 'actionable') {
     } else {
         $sql .= " AND status IN ('Delivered', 'Completed', 'Cancelled', 'Refunded', 'Refund Rejected')";
     }
+}
+
+if ($date_filter !== '') {
+    $sql .= " AND DATE(order_date) = ?";
+    $params[] = $date_filter;
+    $types .= "s";
 }
 
 // 3. Safely apply Search Filters
@@ -89,6 +96,56 @@ if (!empty($orders_list)) {
     // Fallback if parameter invalid
     if (!$selected_order) { $selected_order = $orders_list[0]; }
 }
+
+$search_counts = [
+    'Processing' => 0, 
+    'In Transit' => 0, 
+    'Refund Processing' => 0, 
+    'Delivered' => 0, 
+    'Completed' => 0, 
+    'Cancelled' => 0, 
+    'Refunded' => 0, 
+    'Refund Rejected' => 0
+];
+
+$count_sql = "SELECT status, COUNT(*) as cnt FROM orders WHERE 1=1";
+$count_params = [];
+$count_types = "";
+
+if ($date_filter !== '') {
+    $count_sql .= " AND DATE(order_date) = ?";
+    $count_params[] = $date_filter;
+    $count_types .= "s";
+}
+
+if ($search_query !== '') {
+    $count_sql .= " AND (order_id LIKE ? OR CAST(user_id AS CHAR) LIKE ?)";
+    $like_param = '%' . $search_query . '%';
+    $count_params[] = $like_param;
+    $count_params[] = $like_param;
+    $count_types .= "ss";
+}
+
+$count_sql .= " GROUP BY status";
+
+$stmt = $conn->prepare($count_sql);
+if (!empty($count_params)) {
+    $stmt->bind_param($count_types, ...$count_params);
+}
+$stmt->execute();
+$res = $stmt->get_result();
+while ($row = $res->fetch_assoc()) {
+    $search_counts[$row['status']] = $row['cnt'];
+}
+$stmt->close();
+
+$counts = [
+    'actionable' => $search_counts['Processing'],
+    'active'     => $search_counts['In Transit'],
+    'refund'     => $search_counts['Refund Processing'],
+    'completed'  => $search_counts['Delivered'] + $search_counts['Completed'] + $search_counts['Cancelled'] + $search_counts['Refunded'] + $search_counts['Refund Rejected'],
+    'all'        => array_sum($search_counts)
+];
 ?>
 <!DOCTYPE html>
 <html class="light" lang="en">
@@ -224,7 +281,7 @@ if (!empty($orders_list)) {
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Order Records</h2>
-                    <p class="text-on-surface-variant mt-1">Holistic transactional control dashboard panel and full order items dispatch tracking view.</p>
+                    <p class="text-on-surface-variant mt-1">Manage Orders</p>
                 </div>
             </div>
 
@@ -257,45 +314,77 @@ if (!empty($orders_list)) {
                         <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-xl">search</span>
                         <input type="text" name="search" value="<?php echo htmlspecialchars($search_query); ?>" 
                                 placeholder="Search Invoice reference or User ID..." 
-                                class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-all">
+                                class="w-full pl-11 pr-4 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-0 transition-all">
                     </div>
                     <button type="submit" class="px-5 py-2.5 bg-primary text-on-primary text-xs font-bold rounded-xl shadow-sm hover:bg-primary-dim transition-all">Search</button>
+                    
                     <?php if (!empty($search_query)): ?>
                         <a href="orders.php?tab=<?php echo urlencode($active_tab); ?>" class="px-4 py-2.5 bg-surface-container-low border border-surface-container-high text-on-surface-variant text-xs font-bold rounded-xl flex items-center justify-center hover:bg-surface-container-high transition-colors">Clear</a>
                     <?php endif; ?>
                 </form>
+
+                <div class="relative min-w-[150px]">
+                    <input type="date" 
+                        id="date-filter-input"
+                        value="<?php echo htmlspecialchars($date_filter); ?>" 
+                        onchange="applyDateFilter(this.value)"
+                        class="w-full px-3 py-2.5 bg-surface-container-lowest border border-surface-container-high rounded-xl text-xs font-semibold text-stone-600 focus:outline-none focus:border-primary focus:ring-0 transition-all">
+                </div>
             </div>
 
             <!-- Dashboard Main Grid Container -->
             <div class="space-y-6">
+                <?php
+                $params_array = [];
+                if (!empty($search_query)) $params_array['search'] = $search_query;
+                if (!empty($date_filter)) $params_array['date_filter'] = $date_filter;
+                $query_string = !empty($params_array) ? '&' . http_build_query($params_array) : '';
+                ?>
                 <!-- Navigation Filter Tabs Strip -->
                 <div class="flex border-b border-surface-container-high gap-2">
-                    <a href="orders.php?tab=actionable&search=<?php echo urlencode($search_query); ?>" 
-                       class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'actionable' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Pending
-                    </a>
-                    <a href="orders.php?tab=active&search=<?php echo urlencode($search_query); ?>" 
-                       class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'active' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Active
-                    </a>
-                    <a href="orders.php?tab=refund&search=<?php echo urlencode($search_query); ?>" 
-                       class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'refund' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Refunds
-                    </a>
-                    <a href="orders.php?tab=completed&search=<?php echo urlencode($search_query); ?>" 
-                       class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'completed' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        Completed
-                    </a>
-                    <a href="orders.php?tab=all&search=<?php echo urlencode($search_query); ?>" 
-                       class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'all' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
-                        All Orders
-                    </a>
+                    <?php 
+                    $tabs = [
+                        'actionable' => ['label' => 'Pending', 'count' => $counts['actionable']],
+                        'active'     => ['label' => 'Active', 'count' => $counts['active']],
+                        'refund'     => ['label' => 'Refunds', 'count' => $counts['refund']],
+                        'completed'  => ['label' => 'Completed', 'count' => $counts['completed']],
+                        'all'        => ['label' => 'All Orders', 'count' => $counts['all']]
+                    ];
+                    
+                    foreach ($tabs as $key => $data): 
+                    ?>
+                        <a href="orders.php?tab=<?php echo $key . $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all 
+                        <?php echo $active_tab === $key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            <?php echo $data['label']; ?> (<?php echo $data['count']; ?>)
+                        </a>
+                        <!-- <a href="orders.php?tab=actionable<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'actionable' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Pending
+                        </a>
+                        <a href="orders.php?tab=active<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'active' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Active
+                        </a>
+                        <a href="orders.php?tab=refund<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'refund' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Refunds
+                        </a>
+                        <a href="orders.php?tab=completed<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'completed' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            Completed
+                        </a>
+                        <a href="orders.php?tab=all<?php echo $query_string; ?>" 
+                        class="px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all <?php echo $active_tab === 'all' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant/70 hover:text-on-surface'; ?>">
+                            All Orders
+                        </a> -->
+                    <?php endforeach; ?>
                 </div>
 
                 <?php if ($active_tab === 'completed'): ?>
                     <div class="flex items-center gap-1.5 mt-4 mb-2 overflow-x-auto scrollbar-none py-1">
                         
-                        <?php $all_url = "orders.php?tab=completed&sub_status=All" . (!empty($search_query) ? '&search='.urlencode($search_query) : ''); ?>
+                        <?php $all_url = "skinmate_api/admin/orders.php?tab=completed&sub_status=All" . (!empty($search_query) ? '&search='.urlencode($search_query) : ''); ?>
                         <button type="button" 
                         onclick="viewOrder('<?php echo $all_url; ?>')"
                         class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap <?php echo $sub_status === 'All' ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
@@ -304,14 +393,15 @@ if (!empty($orders_list)) {
 
                         <?php 
                         foreach ($completed_statuses as $st): 
+                            // Define $is_sub_active so the button style updates correctly
                             $is_sub_active = ($sub_status === $st);
                             
-                            $sub_url = "orders.php?tab=completed&sub_status=" . urlencode($st);
-                            if (!empty($search_query)) { $sub_url .= "&search=" . urlencode($search_query); }
+                            // Use the $query_string we built earlier (includes search and date_filter)
+                            $sub_url = "skinmate_api/admin/orders.php?tab=completed&sub_status=" . urlencode($st) . $query_string;
                         ?>
                             <button type="button" 
-                            onclick="viewOrder('<?php echo $sub_url; ?>')"
-                            class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap <?php echo $is_sub_active ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
+                                    onclick="viewOrder('<?php echo $sub_url; ?>')" 
+                                    class="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition-all text-left whitespace-nowrap <?php echo $is_sub_active ? 'bg-primary text-white shadow-sm' : 'bg-stone-100 text-stone-500 hover:text-primary hover:bg-stone-200/70'; ?>">
                                 <?php echo $st; ?>
                             </button>
                         <?php endforeach; ?>
@@ -346,7 +436,7 @@ if (!empty($orders_list)) {
                                                 elseif (in_array($row_order['status'], ['Cancelled', 'Refund Rejected'])) { $status_style = 'bg-red-500/10 text-red-600'; }
                                             ?>
                                                 <!-- <tr class="group hover:translate-y-[-2px] transition-all cursor-pointer" onclick="window.location.href='orders.php?tab=<?php echo $active_tab; ?>&search=<?php echo urlencode($search_query); ?>&view=<?php echo urlencode($row_order['order_id']); ?>'"> -->
-                                                <tr class="group hover:translate-y-[-2px] transition-all cursor-pointer" onclick="viewOrder('orders.php?tab=<?php echo $active_tab; ?>&sub_status=<?php echo urlencode($sub_status); ?>&search=<?php echo urlencode($search_query); ?>&view=<?php echo urlencode($row_order['order_id']); ?>')">
+                                                <tr class="group hover:translate-y-[-2px] transition-all cursor-pointer" onclick="viewOrder('skinmate_api/admin/orders.php?tab=<?php echo $active_tab; ?>&sub_status=<?php echo urlencode($sub_status); ?>&search=<?php echo urlencode($search_query); ?>&date_filter=<?php echo urlencode($date_filter); ?>&view=<?php echo urlencode($row_order['order_id']); ?>')">
                                                     <td class="w-[30%] px-4 py-4 bg-surface-container-lowest first:rounded-l-2xl last:rounded-r-2xl transition-all <?php echo $is_active_selection ? 'border-y-2 border-l-2 border-primary/40' : ''; ?>">
                                                         <span class="text-xs font-bold text-stone-900">#<?php echo htmlspecialchars($row_order['order_id']); ?></span>
                                                     </td>
@@ -540,9 +630,38 @@ if (!empty($orders_list)) {
             }
         });
 
+        // function viewOrder(url) {
+        //     sessionStorage.setItem("orders_scroll_pos", window.scrollY);
+        //     window.location.href = url;
+        // }
+
         function viewOrder(url) {
             sessionStorage.setItem("orders_scroll_pos", window.scrollY);
-            window.location.href = url;
+            
+            // Ensure existing date/search filters are carried over to the 'view' URL
+            const targetUrl = new URL(url, window.location.origin);
+            const currentParams = new URLSearchParams(window.location.search);
+            
+            if (currentParams.has('search') && !targetUrl.searchParams.has('search')) 
+                targetUrl.searchParams.set('search', currentParams.get('search'));
+            if (currentParams.has('date_filter') && !targetUrl.searchParams.has('date_filter')) 
+                targetUrl.searchParams.set('date_filter', currentParams.get('date_filter'));
+                
+            window.location.href = targetUrl.toString();
+        }
+
+        function applyDateFilter(dateValue) {
+            const url = new URL(window.location.href);
+            
+            // Set or clear the date_filter
+            if (dateValue) {
+                url.searchParams.set('date_filter', dateValue);
+            } else {
+                url.searchParams.delete('date_filter');
+            }
+            
+            // Redirect to the updated URL (maintaining tab, search, and sub_status)
+            window.location.href = url.toString();
         }
     </script>
 

@@ -142,10 +142,20 @@ $admin_data = $stmt->get_result()->fetch_assoc();
                 <p class="text-on-surface-variant text-sm mb-8">Confirm your identity to access secure settings.</p>
 
                 <form method="POST" class="text-left">
-                    <div class="space-y-1.5 mb-6">
+                    <!-- <div class="space-y-1.5 mb-6">
                         <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Current Password</label>
                         <input type="password" name="current_password" placeholder="••••••••" 
                             class="w-full bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20 text-on-surface p-3" required/>
+                    </div> -->
+
+                    <div class="space-y-1.5 mb-6 relative">
+                        <label class="text-xs font-bold text-stone-500 uppercase tracking-wider">Current Password</label>
+                        <input type="password" name="current_password" id="verify_current_password" placeholder="••••••••" 
+                            class="w-full bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20 text-on-surface p-3" required/>
+                        <button type="button" onclick="togglePassword('verify_current_password')" 
+                            class="absolute right-3 bottom-3 text-stone-400 hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined">visibility</span>
+                        </button>
                     </div>
                     
                     <button type="submit" name="verify_access" 
@@ -171,7 +181,7 @@ $admin_data = $stmt->get_result()->fetch_assoc();
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                     <div>
                         <h2 class="text-3xl font-extrabold text-orange-900 tracking-tight">Account Settings</h2>
-                        <p class="text-on-surface-variant mt-1">Manage account details.</p>
+                        <p class="text-on-surface-variant mt-1">Manage Account</p>
                     </div>
                 </div>
 

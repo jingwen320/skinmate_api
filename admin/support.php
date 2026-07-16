@@ -18,6 +18,14 @@
                         <h2 id="queue-title-label" class="text-xl font-bold text-on-surface">Active Tickets</h2>
                         <span id="label-queue-count" class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-bold">0</span>
                     </div>
+                    <div class="mb-6 relative">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-base">
+                            search
+                        </span>
+                        <input type="text" id="ticket-search" oninput="refreshTicketQueueList()" 
+                            placeholder="Search Room ID, User ID, or Name..." 
+                            class="w-full pl-10 pr-3 py-2 bg-surface-container-lowest border border-outline-variant/20 rounded-lg text-xs focus:outline-none focus:border-[#91462E] focus:ring-0 transition-all">
+                    </div>
                     <div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                         <!-- Added explicit event hooks and distinct styling IDs -->
                         <span id="tab-pending" onclick="switchQueueTab('open')" class="bg-primary text-on-primary px-3 py-1 rounded-full text-xs whitespace-nowrap cursor-pointer transition-all">Pending</span>
@@ -254,11 +262,17 @@
             const queueContainer = document.getElementById('admin-ticket-queue');
             const counterLabel = document.getElementById('label-queue-count');
 
+            const searchInput = document.getElementById('ticket-search');
+            const searchTerm = searchInput ? searchInput.value : '';
+
             if (!queueContainer) return;
 
             const cacheBuster = new Date().getTime();
 
-            fetch(`backend/get_rooms.php?status=${currentTabStatus}&_cb=${cacheBuster}`)
+            const url = `backend/get_rooms.php?status=${currentTabStatus}&search=${encodeURIComponent(searchTerm)}&_cb=${cacheBuster}`;
+
+            // fetch(`backend/get_rooms.php?status=${currentTabStatus}&_cb=${cacheBuster}`)
+            fetch(url)
                 .then(res => {
                     if (!res.ok) throw new Error(`HTTP System Error ${res.status}`);
                     return res.text();
@@ -350,6 +364,18 @@
                     queueContainer.innerHTML = `<p class="text-xs text-red-400 text-center mt-4">Connection Failed.</p>`;
                 });
         }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const searchInput = document.getElementById('ticket-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(window.searchTimer);
+                    window.searchTimer = setTimeout(() => {
+                        refreshTicketQueueList();
+                    }, 300);
+                });
+            }
+        });
 
         function selectCachedRoomByIndex(index) {
             if (window.loadedRoomsCache && window.loadedRoomsCache[index]) {
