@@ -383,6 +383,27 @@ $products_result = $conn->query($query);
         .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
         body { font-family: 'Manrope', sans-serif; background-color: #f7f6f3; }
         h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+        /* Card Flip Styles */
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+        }
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+        }
+        .front-card {
+            z-index: 2;
+        }
+        .back-card {
+            transform: rotateY(180deg);
+        }
     </style>
 </head>
 <body class="text-on-background bg-background overflow-x-hidden">
@@ -415,13 +436,72 @@ $products_result = $conn->query($query);
             <?php endif; ?>
 
             <div class="grid grid-cols-4 gap-6 mb-10">
-                <div class="col-span-1 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100">
+                <!-- <div class="col-span-1 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100">
                     <p class="text-stone-500 text-xs font-bold uppercase tracking-widest mb-1">Total Products</p>
                     <h3 class="text-3xl font-extrabold text-orange-900"><?php echo $total_products; ?></h3>
+                </div> -->
+                <div class="col-span-1 perspective-1000 cursor-pointer" onclick="toggleCardFlip(this)">                   
+                    <div class="relative w-full h-full transform-style-3d transition-transform duration-600">                        
+                        <div class="front-card bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100 relative w-full h-full backface-hidden flex flex-col justify-between hover:shadow-md">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="text-stone-500 text-xs font-bold uppercase tracking-widest">Total Products</p>
+                                </div>
+                                <h3 class="text-3xl font-extrabold text-orange-900 mt-1"><?php echo $total_products; ?></h3>
+                            </div>
+                        </div>
+
+                        <div class="back-card absolute inset-0 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100 backface-hidden flex flex-col justify-between rotate-y-180 hover:shadow-md overflow-hidden">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-stone-500 text-xs font-bold uppercase tracking-widest">Brands</p>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 mt-2 max-h-[85px] overflow-y-auto pr-1">
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Cetaphil</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Skintific</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">G2G</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Hada Labo</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Bio-essence</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-span-1 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100">
+                <!-- <div class="col-span-1 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100">
                     <p class="text-stone-500 text-xs font-bold uppercase tracking-widest mb-1">Active Categories</p>
                     <h3 class="text-3xl font-extrabold text-orange-900">5 Types</h3>
+                </div> -->
+                <div class="col-span-1 perspective-1000 cursor-pointer" onclick="toggleCardFlip(this)">                   
+                    <div id="categoriesCardInner" class="relative w-full h-full transform-style-3d transition-transform duration-600">                        
+                        <div class="front-card bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100 relative w-full h-full backface-hidden flex flex-col justify-between hover:shadow-md">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="text-stone-500 text-xs font-bold uppercase tracking-widest">Active Categories</p>
+                                    <!-- <span class="text-[10px] font-bold text-orange-800 bg-orange-50 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                                        <span class="material-symbols-outlined text-xs">touch_app</span> Flip
+                                    </span> -->
+                                </div>
+                                <h3 class="text-3xl font-extrabold text-orange-900 mt-1 mb-1">5 Types</h3>
+                            </div>
+                            <!-- <p class="text-[11px] text-stone-400 mt-4">Click to view category list</p> -->
+                        </div>
+
+                        <div class="back-card absolute inset-0 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-stone-100 backface-hidden flex flex-col justify-between rotate-y-180 hover:shadow-md">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <p class="text-stone-500 text-xs font-bold uppercase tracking-widest">Category List</p>
+                                    <!-- <span class="text-[10px] font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">⟳ Flip back</span> -->
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Cleanser</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Toner</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Serum</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Moisturizer</span>
+                                    <span class="text-xs font-bold bg-orange-50 text-orange-900 px-2.5 py-1 rounded-lg">Acne Treatment</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-span-2 bg-primary-container/10 p-6 rounded-3xl border border-primary-container/20 flex justify-between items-center">
                     <div>
@@ -1079,6 +1159,18 @@ $products_result = $conn->query($query);
                     icon.className = "sort-icon material-symbols-outlined text-sm text-stone-300 group-hover/th:text-stone-400 transition-all";
                 }
             });
+        }
+
+        // function toggleCardFlip(element) {
+        //     const innerCard = element.querySelector('#categoriesCardInner');
+        //     innerCard.classList.toggle('rotate-y-180');
+        // }
+
+        function toggleCardFlip(element) {
+            const innerCard = element.querySelector('.transform-style-3d');
+            if (innerCard) {
+                innerCard.classList.toggle('rotate-y-180');
+            }
         }
     </script>
 </body>

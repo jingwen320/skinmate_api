@@ -1,4 +1,5 @@
 <?php
+// admin/backend/get_analytics.php
 session_start();
 include '../../db.php'; 
 
@@ -8,6 +9,28 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 }
 
 header('Content-Type: application/json');
+
+function forecastNextMonth($monthly_data) {
+    $values = array_values(array_filter($monthly_data, fn($v) => $v > 0));
+    $n = count($values);
+    if ($n < 2) return 0; 
+
+    $sum_x = 0; $sum_y = 0; $sum_xy = 0; $sum_xx = 0;
+    for ($i = 0; $i < $n; $i++) {
+        $sum_x += $i;
+        $sum_y += $values[$i];
+        $sum_xy += ($i * $values[$i]);
+        $sum_xx += ($i * $i);
+    }
+
+    $denominator = ($n * $sum_xx - ($sum_x * $sum_x));
+    if ($denominator == 0) return end($values);
+
+    $m = ($n * $sum_xy - ($sum_x * $sum_y)) / $denominator;
+    $b = ($sum_y - $m * $sum_x) / $n;
+
+    return max(0, ($m * $n) + $b);
+}
 
 try {
     // $stmt_sales = $conn->query("SELECT IFNULL(SUM(final_total), 0) FROM orders WHERE status IN ('Completed', 'Refund Rejected')");
@@ -212,12 +235,15 @@ try {
         ];
     }
 
+    $predicted_revenue = forecastNextMonth($monthly_data);
+
     echo json_encode([
         'status' => 'success',
         'metrics' => [
             'total_sales'    => number_format($net_sales, 2),
             'active_users'   => (int)$active_users,
-            'pending_orders' => (int)$pending_orders
+            'pending_orders' => (int)$pending_orders,
+            'forecast_sales' => number_format($predicted_revenue, 2)
         ],
         'charts' => [
             'weekly' => $formatted_weekly,
