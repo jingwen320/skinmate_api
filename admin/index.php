@@ -60,7 +60,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                 <h3 id="stat-sales" class="text-3xl font-extrabold text-on-surface mt-1">RM 0.00</h3>
             </div>
 
-            <div class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary">
+            <a href="users.php" class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary hover:shadow-md">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center">
                         <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">group</span>
@@ -68,9 +68,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                     <p class="text-on-surface-variant text-sm font-medium">Total Registered Users</p>
                 </div>
                 <h3 id="stat-users" class="text-3xl font-extrabold text-on-surface mt-1">0</h3>
-            </div>
+            </a>
 
-            <div class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-secondary">
+            <a href="orders.php" class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-secondary hover:shadow-md">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-full bg-secondary-container/20 flex items-center justify-center">
                         <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">pending_actions</span>
@@ -78,7 +78,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                     <p class="text-on-surface-variant text-sm font-medium">Pending Orders</p>
                 </div>
                 <h3 id="stat-pending" class="text-3xl font-extrabold text-on-surface mt-1">0</h3>
-            </div>
+            </a>
         </div>
             
         <div class="grid grid-cols-12 gap-6">
