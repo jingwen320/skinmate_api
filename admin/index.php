@@ -35,6 +35,27 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
         .animate-float-down {
             animation: floatDown 0.5s ease-out forwards;
         }
+
+        /* Card Flip Styles */
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+        }
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+        }
+        .front-card {
+            z-index: 2;
+        }
+        .back-card {
+            transform: rotateY(180deg);
+        }
     </style>
     <?php include 'sidebar.php'; ?>
 </head>
@@ -50,7 +71,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 
         <!-- Bento Grid Metrics -->
         <div class="grid grid-cols-12 gap-6 mb-8">
-            <div class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary">
+            <!-- <div class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center">
                         <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">payments</span>
@@ -58,6 +79,57 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                     <p class="text-on-surface-variant text-sm font-medium">Total Sales</p>
                 </div>
                 <h3 id="stat-sales" class="text-3xl font-extrabold text-on-surface mt-1">RM 0.00</h3>
+            </div> -->
+
+            <!-- <div class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-stone-100">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+                    </div>
+                    <p class="text-stone-500 text-xs font-bold uppercase tracking-widest">Next Month Forecast</p>
+                </div>
+                <h3 id="stat-forecast" class="text-3xl font-extrabold text-stone-900 mt-1">RM 0.00</h3>
+                <p class="text-xs text-stone-400 mt-2">Predicted based on historical trend</p>
+            </div> -->
+
+            <div class="col-span-12 md:col-span-4 perspective-1000 cursor-pointer" onclick="toggleCardFlip(this)">
+                <div id="salesCardInner" class="relative w-full h-full transform-style-3d">  
+                    <div class="front-card bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary relative w-full h-full backface-hidden hover:shadow-md">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-primary-container/20 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">payments</span>
+                                </div>
+                                <p class="text-on-surface-variant text-sm font-medium">Total Sales</p>
+                            </div>
+                            <!-- Visual cue telling user it's clickable -->
+                            <span class="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
+                                <span class="material-symbols-outlined text-xs">touch_app</span> Flip for Forecast
+                            </span>
+                        </div>
+                        <h3 id="stat-sales" class="text-3xl font-extrabold text-on-surface mt-1">RM 0.00</h3>
+                        <!-- <p class="text-[11px] text-stone-400 mt-2">Click card to see next month's projection</p> -->
+                    </div>
+
+                    <div class="back-card absolute inset-0 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary backface-hidden flex flex-col justify-between hover:shadow-md">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+                                    </div>
+                                    <!-- <p class="text-stone-500 text-xs font-bold uppercase tracking-widest">Next Month Forecast</p> -->
+                                    <p class="text-on-surface-variant text-sm font-medium">Next Month Forecast</p>
+                                </div>
+                                <span class="text-[10px] font-bold text-stone-400 bg-stone-100 px-2 py-1 rounded-full">
+                                    ⟳ Flip back
+                                </span>
+                            </div>
+                            <h3 id="stat-forecast" class="text-3xl font-extrabold text-stone-900 mt-1">RM 0.00</h3>
+                        </div>
+                        <!-- <p class="text-xs text-stone-400">Predicted based on historical trend</p> -->
+                    </div>
+                </div>
             </div>
 
             <a href="users.php" class="col-span-12 md:col-span-4 bg-surface-container-lowest rounded-xl p-6 shadow-sm border-b-4 border-primary hover:shadow-md">
@@ -121,8 +193,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                         <option value="all">All Time</option>
                     </select>
                 </div>
-                <div id="leaderboard-list" class="space-y-4">
-                    </div>
+                <div id="leaderboard-list" class="space-y-4"></div>
             </div>
         </div>
     </main>
@@ -144,6 +215,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                         document.getElementById('stat-sales').innerText = "RM " + data.metrics.total_sales;
                         document.getElementById('stat-users').innerText = data.metrics.active_users;
                         document.getElementById('stat-pending').innerText = data.metrics.pending_orders;
+
+                        const forecastEl = document.getElementById('stat-forecast');
+                        if (forecastEl) {
+                            forecastEl.innerText = "RM " + data.metrics.forecast_sales;
+                        }
 
                         // Render Leaderboard
                         // const leaderboardList = document.getElementById('leaderboard-list');
@@ -221,7 +297,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                 .then(data => {
                     // 3. Handle empty case
                     if (!data.leaderboard || data.leaderboard.length === 0) {
-                        list.innerHTML = '<p class="text-stone-400 text-sm p-4 italic">No sales recorded for this period.</p>';
+                        list.innerHTML = '<p class="text-center text-stone-400 text-sm p-4 italic">No sales recorded for this period.</p>';
                         return;
                     }
 
@@ -258,7 +334,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                 })
                 .catch(error => {
                     console.error("Error loading leaderboard:", error);
-                    list.innerHTML = '<p class="text-red-400 text-sm p-4">Failed to load data.</p>';
+                    list.innerHTML = '<p class="text-center text-red-400 text-sm p-4">Failed to load data.</p>';
                 });
         }
 
@@ -454,6 +530,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
                     }
                 }
             });
+        }
+
+        function toggleCardFlip(element) {
+            const innerCard = element.querySelector('#salesCardInner');
+            innerCard.classList.toggle('rotate-y-180');
         }
     </script>
 

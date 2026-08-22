@@ -238,14 +238,25 @@ $counts = [
         function submitOrderUpdate(orderTableId) {
             const statusSelect = document.getElementById(`status-select-${orderTableId}`);
             const noteTextarea = document.getElementById(`note-textarea-${orderTableId}`);
+            const trackingInput = document.getElementById(`trackingInput-${orderTableId}`);
             
             if (!statusSelect) return;
+
+            const selectedStatus = statusSelect.value;
+            const trackingNo = trackingInput ? trackingInput.value.trim() : '';
+
+            if (selectedStatus === 'In Transit' && trackingNo === '') {
+                alert('Please enter a tracking number before setting the order to In Transit.');
+                if (trackingInput) trackingInput.focus();
+                return;
+            }
 
             const formData = new FormData();
             formData.append('action', 'update_order');
             formData.append('id', orderTableId);
             formData.append('status', statusSelect.value);
             formData.append('note', noteTextarea ? noteTextarea.value : '');
+            formData.append('tracking_no', trackingNo);
 
             // Targets the unified system worker endpoint
             fetch('backend/update_order_status.php', {
@@ -582,6 +593,29 @@ $counts = [
                                     </div>
                                 </div>
 
+                                <?php if (!empty($selected_order['tracking_no'])): ?>
+                                <div class="pt-4 border-t">
+                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2">Tracking Info</p>
+                                    <div class="bg-primary/5 border border-primary/10 rounded-xl p-3 text-xs text-stone-600 space-y-1.5">
+                                        <div class="flex justify-between items-center">
+                                            <span class="font-bold text-stone-900">Tracking No:</span>
+                                            <span class="font-mono text-primary font-bold"><?php echo htmlspecialchars($selected_order['tracking_no']); ?></span>
+                                        </div>
+                                        <?php if (!empty($selected_order['shipped_at'])): ?>
+                                            <div class="flex justify-between items-center text-[11px] text-stone-500">
+                                                <span class="font-medium">Shipped At:</span>
+                                                <span><?php echo date('d M Y, h:i A', strtotime($selected_order['shipped_at'])); ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div class="pt-1.5">
+                                            <a href="https://www.dhl.com/my-en/home/tracking.html?tracking-id=<?php echo urlencode($selected_order['tracking_no']); ?>" target="_blank" class="text-xs text-primary font-bold hover:underline flex items-center gap-1">
+                                                <span class="material-symbols-outlined text-sm">open_in_new</span> Track on DHL Portal
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
                                 <!-- State & Memo Modifiers Engine -->
                                 <div class="pt-4 border-t space-y-3">
                                     <div>
@@ -591,7 +625,7 @@ $counts = [
                                     <div>
                                         <label class="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 block mb-2">Modify Logistics Status</label>
                                         <div class="relative">
-                                            <select id="status-select-<?php echo $order_table_id; ?>" class="w-full appearance-none bg-none bg-surface-container-low border-none rounded-xl px-4 py-3 text-xs font-bold text-stone-700 focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer">
+                                            <select id="status-select-<?php echo $order_table_id; ?>" onchange="toggleTrackingField('<?php echo $order_table_id; ?>')" class="w-full appearance-none bg-none bg-surface-container-low border-none rounded-xl px-4 py-3 text-xs font-bold text-stone-700 focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer">
                                                 <?php 
                                                 $statuses = ['Processing', 'In Transit', 'Delivered', 'Completed', 'Cancelled', 'Refund Processing', 'Refunded', 'Refund Rejected'];
                                                 foreach ($statuses as $st): 
@@ -601,6 +635,10 @@ $counts = [
                                             </select>
                                             <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">expand_more</span>
                                         </div>
+                                    </div>
+                                    <div id="trackingWrapper-<?php echo $order_table_id; ?>" style="display: none;" class="mb-3">
+                                        <label class="block text-xs font-bold mb-1 text-primary uppercase tracking-wider">Tracking Number <span class="text-primary">*</span></label>
+                                        <input type="text" id="trackingInput-<?php echo $order_table_id; ?>" value="<?php echo htmlspecialchars($selected_order['tracking_no'] ?? ''); ?>" placeholder="Enter tracking number" class="w-full px-3 py-2 bg-surface-container-low border-none rounded-xl text-xs text-stone-700 placeholder:text-stone-400 focus:ring-2 focus:ring-primary/20 transition-all" />
                                     </div>
                                     <button type="button" onclick="submitOrderUpdate('<?php echo $order_table_id; ?>')" class="w-full py-3 bg-orange-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-orange-800 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-orange-900/15">
                                         <span class="material-symbols-outlined text-sm">save</span> Save Changes
@@ -627,6 +665,11 @@ $counts = [
             if (savedScrollPos) {
                 window.scrollTo(0, parseInt(savedScrollPos));
                 sessionStorage.removeItem("orders_scroll_pos"); 
+            }
+
+            const activeOrderId = '<?php echo $order_table_id ?? ""; ?>';
+            if (activeOrderId) {
+                toggleTrackingField(activeOrderId);
             }
         });
 
@@ -662,6 +705,36 @@ $counts = [
             
             // Redirect to the updated URL (maintaining tab, search, and sub_status)
             window.location.href = url.toString();
+        }
+
+        function toggleTrackingField(orderId) {
+            const statusSelect = document.getElementById('status-select-' + orderId);
+            const wrapper = document.getElementById('trackingWrapper-' + orderId);
+            const input = document.getElementById('trackingInput-' + orderId);
+            
+            if (!statusSelect || !wrapper || !input) return;
+            
+            if (statusSelect.value === 'In Transit') {
+                wrapper.style.display = 'block';
+                input.required = true;
+            } else {
+                wrapper.style.display = 'none';
+                input.required = false;
+                input.value = ''; // Clear value if hidden so it doesn't accidentally save old data
+            }
+        }
+
+        function validateTracking(orderId) {
+            const statusSelect = document.getElementById('status-select-' + orderId);
+            const input = document.getElementById('trackingInput-' + orderId);
+            
+            if (statusSelect && statusSelect.value === 'In Transit') {
+                if (!input || input.value.trim() === '') {
+                    alert('Please enter a DHL tracking number for shipments in transit.');
+                    return false;
+                }
+            }
+            return true;
         }
     </script>
 

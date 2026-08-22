@@ -1,4 +1,5 @@
 <?php
+// get_order_details.php
 include 'db.php';
 
 $order_id = $_GET['order_id'] ?? '';
@@ -71,7 +72,9 @@ echo json_encode([
             'state'    => $order_data['state'],
             'region'   => $order_data['region']
         ],
-        'items' => $items
+        'items' => $items,
+        'tracking_no'     => $order_data['tracking_no'] ?? '',
+        'shipped_at'      => $order_data['shipped_at'] ?? ''
     ]
 ]);
 ?>

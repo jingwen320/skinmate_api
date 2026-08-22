@@ -245,7 +245,7 @@ function sendPHPMailerReceipt($to_email, $order_id, $items_html, $subtotal, $dis
             <div style='clear: both;'></div>
             
             <hr style='border: none; border-top: 1px solid #EAEAEA; margin: 30px 0;'>
-            <p style='font-size: 12px; color: #999999; text-align: center;'>If you have any questions regarding your delivery details, please contact customer assistance inside the SkinMate application framework.</p>
+            <p style='font-size: 12px; color: #999999; text-align: center;'>If you have any questions regarding your order details, please contact customer assistance inside the SkinMate application.</p>
         </div>
     </body>
     </html>";
