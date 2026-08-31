@@ -235,7 +235,14 @@ try {
         ];
     }
 
-    $predicted_revenue = forecastNextMonth($monthly_data);
+    // $predicted_revenue = forecastNextMonth($monthly_data);
+
+    // Fetch the latest XGBoost Prediction from the database table
+    $stmt_forecast = $conn->query("SELECT predicted_amount FROM revenue_forecasts ORDER BY forecast_month DESC LIMIT 1");
+    $predicted_revenue = 0.0;
+    if ($stmt_forecast && $row_f = $stmt_forecast->fetch_assoc()) {
+        $predicted_revenue = (float)$row_f['predicted_amount'];
+    }
 
     echo json_encode([
         'status' => 'success',
