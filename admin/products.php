@@ -111,39 +111,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     // Parse checkboxes array strictly into a flat string for the description column
     $description = isset($_POST['concerns']) ? parseConcerns($_POST['concerns']) : 'General Skincare';
 
+    // if (!empty($name) && !empty($category)) {
+    //     // Step 1: Temporarily reserve database slot to get auto-increment entity ID 
+    //     $temp_image = "";
+        
+    //     // 8 columns total -> sssssdis format signature mapping
+    //     $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    //     $stmt->bind_param("sssssdiis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $sold_quantity, $temp_image);
+        
+    //     if ($stmt->execute()) {
+    //         $newId = $conn->insert_id; // Capture new unique database identity value
+            
+    //         // Step 2: Route file pipeline using the newly obtained ID matching the target brand folder
+    //         $finalImageName = handleCustomImageUpload($brand, $newId);
+            
+    //         if (!empty($finalImageName)) {
+    //             // Step 3: Flash patch the correct structural image file location back to the record row
+    //             $updateStmt = $conn->prepare("UPDATE products SET image = ? WHERE id = ?");
+    //             $updateStmt->bind_param("si", $finalImageName, $newId);
+    //             $updateStmt->execute();
+    //             $updateStmt->close();
+    //         }
+            
+    //         $message = "Product successfully created under #RD-" . $newId . " and stored inside " . htmlspecialchars($brand) . " subfolder.";
+    //     } else {
+    //         $error = "System error updating database logs.";
+    //     }
+    //     $stmt->close();
+    // } else {
+    //     $error = "Please fill out all required form variables.";
+    // }
+
     if (!empty($name) && !empty($category)) {
-        // Step 1: Temporarily reserve database slot to get auto-increment entity ID 
-        $temp_image = "";
-        
-        // 8 columns total -> sssssdis format signature mapping
-        $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssdiis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $sold_quantity, $temp_image);
-        
-        if ($stmt->execute()) {
-            $newId = $conn->insert_id; // Capture new unique database identity value
-            
-            // Step 2: Route file pipeline using the newly obtained ID matching the target brand folder
-            $finalImageName = handleCustomImageUpload($brand, $newId);
-            
-            if (!empty($finalImageName)) {
-                // Step 3: Flash patch the correct structural image file location back to the record row
-                $updateStmt = $conn->prepare("UPDATE products SET image = ? WHERE id = ?");
-                $updateStmt->bind_param("si", $finalImageName, $newId);
-                $updateStmt->execute();
-                $updateStmt->close();
-            }
-            
-            $message = "Product successfully created under #RD-" . $newId . " and stored inside " . htmlspecialchars($brand) . " subfolder.";
-        } else {
-            $error = "System error updating database logs.";
+        // 🔒 Check if product name already exists (case-insensitive check)
+        $dup_stmt = $conn->prepare("SELECT id FROM products WHERE LOWER(name) = LOWER(?)");
+        $dup_stmt->bind_param("s", $name);
+        $dup_stmt->execute();
+        $dup_stmt->store_result();
+
+        if ($dup_stmt->num_rows > 0) {
+            $error = "A product with the name '$name' already exists. Please choose a different name.";
         }
-        $stmt->close();
+        $dup_stmt->close();
+
+        // If no duplicate found, proceed with creation
+        if (empty($error)) {
+            // Step 1: Temporarily reserve database slot to get auto-increment entity ID 
+            $temp_image = "";
+            
+            // 8 columns total -> sssssdis format signature mapping
+            $stmt = $conn->prepare("INSERT INTO products (name, brand, skin_suitability, description, category, price, stock_quantity, sold_quantity, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssssdiis", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $sold_quantity, $temp_image);
+            
+            if ($stmt->execute()) {
+                $newId = $conn->insert_id; // Capture new unique database identity value
+                
+                // Step 2: Route file pipeline using the newly obtained ID matching the target brand folder
+                $finalImageName = handleCustomImageUpload($brand, $newId);
+                
+                if (!empty($finalImageName)) {
+                    // Step 3: Flash patch the correct structural image file location back to the record row
+                    $updateStmt = $conn->prepare("UPDATE products SET image = ? WHERE id = ?");
+                    $updateStmt->bind_param("si", $finalImageName, $newId);
+                    $updateStmt->execute();
+                    $updateStmt->close();
+                }
+                
+                $message = "Product successfully created under #RD-" . $newId . " and stored inside " . htmlspecialchars($brand) . " subfolder.";
+            } else {
+                $error = "System error updating database logs.";
+            }
+            $stmt->close();
+        }
     } else {
         $error = "Please fill out all required form variables.";
     }
 }
 
-// 💾 ACTION: Update Existing Product
 // if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_POST['action_type'] === 'update') {
 //     $id = intval($_POST['product_id']);
 //     $name = trim($_POST['name']);
@@ -153,11 +197,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     
 //     $category = trim($_POST['category']);
 //     $price = floatval($_POST['price']);
-//     $stock_quantity = intval($_POST['stock_quantity']);
+//     $new_stock_quantity = intval($_POST['stock_quantity']);
 //     $existing_image = !empty(trim($_POST['existing_image'])) ? trim($_POST['existing_image']) : null;
 
+//     // Fetch the previous stock balance before making updates
+//     $check_stock_stmt = $conn->prepare("SELECT stock_quantity FROM products WHERE id = ?");
+//     $check_stock_stmt->bind_param("i", $id);
+//     $check_stock_stmt->execute();
+//     $old_stock_result = $check_stock_stmt->get_result()->fetch_assoc();
+//     $old_stock_quantity = $old_stock_result ? intval($old_stock_result['stock_quantity']) : 0;
+//     $check_stock_stmt->close();
+
 //     // Process file upload dynamically routing to brand folder named after product ID
-//     // $uploaded_image = handleCustomImageUpload($brand, $id);
 //     if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
 //         $uploaded_image = handleCustomImageUpload($brand, $id);
 //     } else {
@@ -171,10 +222,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
 //     if ($id > 0 && !empty($name)) {
 //         // 9 columns total -> sssssdisi format signature mapping
 //         $stmt = $conn->prepare("UPDATE products SET name = ?, brand = ?, skin_suitability = ?, description = ?, category = ?, price = ?, stock_quantity = ?, image = ? WHERE id = ?");
-//         $stmt->bind_param("sssssdisi", $name, $brand, $skin_suitability, $description, $category, $price, $stock_quantity, $image, $id);
+//         $stmt->bind_param("sssssdisi", $name, $brand, $skin_suitability, $description, $category, $price, $new_stock_quantity, $image, $id);
         
 //         if ($stmt->execute()) {
 //             $message = "Product metrics successfully updated.";
+
+//             // Trigger restock notification if item transitioned from 0 -> > 0
+//             if ($old_stock_quantity == 0 && $new_stock_quantity > 0) {
+                
+//                 // Fetch all subscribers waiting for this product
+//                 $sub_query = "SELECT user_id FROM product_notifications WHERE product_id = ?";
+//                 $sub_stmt = $conn->prepare($sub_query);
+//                 $sub_stmt->bind_param("i", $id);
+//                 $sub_stmt->execute();
+//                 $sub_result = $sub_stmt->get_result();
+
+//                 if ($sub_result->num_rows > 0) {
+//                     $noti_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)");
+                    
+//                     $title = "Back in Stock! 🎉";
+//                     $message_text = "Great news! $name by $brand is now available for purchase again.";
+
+//                     while ($subscriber = $sub_result->fetch_assoc()) {
+//                         $user_id = intval($subscriber['user_id']);
+//                         $noti_stmt->bind_param("iss", $user_id, $title, $message_text);
+//                         $noti_stmt->execute();
+//                     }
+//                     $noti_stmt->close();
+
+//                     // Clear out subscriptions once alerts are successfully broadcasted
+//                     $del_stmt = $conn->prepare("DELETE FROM product_notifications WHERE product_id = ?");
+//                     $del_stmt->bind_param("i", $id);
+//                     $del_stmt->execute();
+//                     $del_stmt->close();
+//                 }
+//                 $sub_stmt->close();
+//             }
+
 //         } else {
 //             $error = "Failed to update product database entity.";
 //         }
@@ -182,6 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
 //     }
 // }
 
+// 💾 ACTION: Update Existing Product
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_POST['action_type'] === 'update') {
     $id = intval($_POST['product_id']);
     $name = trim($_POST['name']);
@@ -194,69 +279,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_type']) && $_P
     $new_stock_quantity = intval($_POST['stock_quantity']);
     $existing_image = !empty(trim($_POST['existing_image'])) ? trim($_POST['existing_image']) : null;
 
-    // Fetch the previous stock balance before making updates
-    $check_stock_stmt = $conn->prepare("SELECT stock_quantity FROM products WHERE id = ?");
-    $check_stock_stmt->bind_param("i", $id);
-    $check_stock_stmt->execute();
-    $old_stock_result = $check_stock_stmt->get_result()->fetch_assoc();
-    $old_stock_quantity = $old_stock_result ? intval($old_stock_result['stock_quantity']) : 0;
-    $check_stock_stmt->close();
-
-    // Process file upload dynamically routing to brand folder named after product ID
-    if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
-        $uploaded_image = handleCustomImageUpload($brand, $id);
-    } else {
-        $uploaded_image = null;
-    }
-    $image = (!empty($uploaded_image)) ? $uploaded_image : $existing_image;
-
-    // Parse checkboxes array strictly into a flat string for the description column
-    $description = isset($_POST['concerns']) ? parseConcerns($_POST['concerns']) : 'General Skincare';
-
     if ($id > 0 && !empty($name)) {
-        // 9 columns total -> sssssdisi format signature mapping
-        $stmt = $conn->prepare("UPDATE products SET name = ?, brand = ?, skin_suitability = ?, description = ?, category = ?, price = ?, stock_quantity = ?, image = ? WHERE id = ?");
-        $stmt->bind_param("sssssdisi", $name, $brand, $skin_suitability, $description, $category, $price, $new_stock_quantity, $image, $id);
-        
-        if ($stmt->execute()) {
-            $message = "Product metrics successfully updated.";
+        // 🔒 Check if another product already uses this name (excluding the current product ID)
+        $dup_stmt = $conn->prepare("SELECT id FROM products WHERE LOWER(name) = LOWER(?) AND id != ?");
+        $dup_stmt->bind_param("si", $name, $id);
+        $dup_stmt->execute();
+        $dup_stmt->store_result();
 
-            // Trigger restock notification if item transitioned from 0 -> > 0
-            if ($old_stock_quantity == 0 && $new_stock_quantity > 0) {
-                
-                // Fetch all subscribers waiting for this product
-                $sub_query = "SELECT user_id FROM product_notifications WHERE product_id = ?";
-                $sub_stmt = $conn->prepare($sub_query);
-                $sub_stmt->bind_param("i", $id);
-                $sub_stmt->execute();
-                $sub_result = $sub_stmt->get_result();
-
-                if ($sub_result->num_rows > 0) {
-                    $noti_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)");
-                    
-                    $title = "Back in Stock! 🎉";
-                    $message_text = "Great news! $name by $brand is now available for purchase again.";
-
-                    while ($subscriber = $sub_result->fetch_assoc()) {
-                        $user_id = intval($subscriber['user_id']);
-                        $noti_stmt->bind_param("iss", $user_id, $title, $message_text);
-                        $noti_stmt->execute();
-                    }
-                    $noti_stmt->close();
-
-                    // Clear out subscriptions once alerts are successfully broadcasted
-                    $del_stmt = $conn->prepare("DELETE FROM product_notifications WHERE product_id = ?");
-                    $del_stmt->bind_param("i", $id);
-                    $del_stmt->execute();
-                    $del_stmt->close();
-                }
-                $sub_stmt->close();
-            }
-
-        } else {
-            $error = "Failed to update product database entity.";
+        if ($dup_stmt->num_rows > 0) {
+            $error = "Another product with the name '$name' already exists. Please choose a different name.";
         }
-        $stmt->close();
+        $dup_stmt->close();
+
+        if (empty($error)) {
+            // Fetch the previous stock balance before making updates
+            $check_stock_stmt = $conn->prepare("SELECT stock_quantity FROM products WHERE id = ?");
+            $check_stock_stmt->bind_param("i", $id);
+            $check_stock_stmt->execute();
+            $old_stock_result = $check_stock_stmt->get_result()->fetch_assoc();
+            $old_stock_quantity = $old_stock_result ? intval($old_stock_result['stock_quantity']) : 0;
+            $check_stock_stmt->close();
+
+            // Process file upload dynamically routing to brand folder named after product ID
+            if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+                $uploaded_image = handleCustomImageUpload($brand, $id);
+            } else {
+                $uploaded_image = null;
+            }
+            $image = (!empty($uploaded_image)) ? $uploaded_image : $existing_image;
+
+            // Parse checkboxes array strictly into a flat string for the description column
+            $description = isset($_POST['concerns']) ? parseConcerns($_POST['concerns']) : 'General Skincare';
+
+            // 9 columns total -> sssssdisi format signature mapping
+            $stmt = $conn->prepare("UPDATE products SET name = ?, brand = ?, skin_suitability = ?, description = ?, category = ?, price = ?, stock_quantity = ?, image = ? WHERE id = ?");
+            $stmt->bind_param("sssssdisi", $name, $brand, $skin_suitability, $description, $category, $price, $new_stock_quantity, $image, $id);
+            
+            if ($stmt->execute()) {
+                $message = "Product metrics successfully updated.";
+
+                // Trigger restock notification if item transitioned from 0 -> > 0
+                if ($old_stock_quantity == 0 && $new_stock_quantity > 0) {
+                    
+                    // Fetch all subscribers waiting for this product
+                    $sub_query = "SELECT user_id FROM product_notifications WHERE product_id = ?";
+                    $sub_stmt = $conn->prepare($sub_query);
+                    $sub_stmt->bind_param("i", $id);
+                    $sub_stmt->execute();
+                    $sub_result = $sub_stmt->get_result();
+
+                    if ($sub_result->num_rows > 0) {
+                        $noti_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)");
+                        
+                        $title = "Back in Stock! 🎉";
+                        $message_text = "Great news! $name by $brand is now available for purchase again.";
+
+                        while ($subscriber = $sub_result->fetch_assoc()) {
+                            $user_id = intval($subscriber['user_id']);
+                            $noti_stmt->bind_param("iss", $user_id, $title, $message_text);
+                            $noti_stmt->execute();
+                        }
+                        $noti_stmt->close();
+
+                        // Clear out subscriptions once alerts are successfully broadcasted
+                        $del_stmt = $conn->prepare("DELETE FROM product_notifications WHERE product_id = ?");
+                        $del_stmt->bind_param("i", $id);
+                        $del_stmt->execute();
+                        $del_stmt->close();
+                    }
+                    $sub_stmt->close();
+                }
+
+            } else {
+                $error = "Failed to update product database entity.";
+            }
+            $stmt->close();
+        }
     }
 }
 
