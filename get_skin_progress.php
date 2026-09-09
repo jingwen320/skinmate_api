@@ -1,4 +1,5 @@
 <?php
+// get_skin_progress.php
 include 'db.php';
 
 header('Content-Type: application/json');
