@@ -123,6 +123,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_TYPE_PATH = os.path.join(BASE_DIR, 'skinmate_type_best_v2.keras')
 MODEL_COND_PATH = os.path.join(BASE_DIR, 'skinmate_conditions_best_v1.keras')
+# MODEL_COND_PATH = os.path.join(BASE_DIR, 'skinmate_conditions_best_v2.keras')
 
 TYPE_LABELS = ['Combination', 'Dry', 'Normal', 'Oily']
 COND_LABELS = ['Acne', 'Dark Spots', 'Pigmentation', 'Pores', 'Redness', 'Wrinkles']
