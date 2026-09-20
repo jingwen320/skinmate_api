@@ -25,7 +25,7 @@ $insert_success = $stmt->execute();
 $stmt->close();
 
 if ($insert_success) {
-    // 2. Critical fix: Force update the parent room's timestamp to lift it to the top of the queue
+    // 2. Force update the parent room's timestamp to lift it to the top of the queue
     $update_room = $conn->prepare("UPDATE chat_rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = ?");
     $update_room->bind_param("i", $room_id);
     $update_room->execute();
@@ -33,7 +33,7 @@ if ($insert_success) {
 
     $formatted_time = date("d M, h:i A");
     
-    // Format Pusher Payload exactly like your customer app expects
+    // Format Pusher Payload 
     $payload = json_encode([
         "name"     => "new-message",
         "channels" => ["chat-room-" . $room_id],

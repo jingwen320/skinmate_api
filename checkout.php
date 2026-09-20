@@ -74,6 +74,14 @@ try {
     );
     $stmt->execute();
 
+    if (!empty($data['voucher_id'])) {
+        $voucher_id = intval($data['voucher_id']);
+        $update_voucher = $conn->prepare("UPDATE user_vouchers SET status = 'used', used_at = NOW() WHERE voucher_id = ? AND user_id = ?");
+        $update_voucher->bind_param("ii", $voucher_id, $user_id);
+        $update_voucher->execute();
+        $update_voucher->close();
+    }
+
     // 2. Fetch the cart items along with their real product_id, stock, and brand
     $cart_query = "
         SELECT c.product_id, c.product_name, c.product_price, c.quantity, p.stock_quantity, p.brand 
