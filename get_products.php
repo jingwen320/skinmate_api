@@ -21,8 +21,7 @@ if ($result) {
         // Force price format to exactly 2 decimal places as a safe string
         $row['price'] = number_format(floatval($row['price']), 2, '.', '');
 
-        // Just pass the raw database value (e.g., "Bio-essence/2.avif")
-        // Your Flutter app can handle combining this with the base URL locally!
+        // Just pass the raw database value 
         $row['image'] = !empty($row['image']) ? trim($row['image']) : 'placeholder-default.png';
 
         $products[] = $row;

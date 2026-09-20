@@ -77,6 +77,21 @@ use PHPMailer\PHPMailer\Exception;
 $mail = new PHPMailer(true);
 
 if ($stmt->execute()) {
+    $userId = $stmt->insert_id;
+    $stmt->close();
+
+    // 🌟 Insert Welcome Voucher (10% discount, valid for 1 month)
+    $welcomeCode = 'WELCOME-' . strtoupper(substr(md5(mt_rand()), 0, 6));
+    $title = 'Welcome 10% Off Voucher';
+    $discountType = 'percentage';
+    $discountValue = 10.00;
+    $voucherExpiry = date("Y-m-d H:i:s", strtotime("+1 month"));
+
+    $voucherStmt = $conn->prepare("INSERT INTO user_vouchers (user_id, voucher_code, title, discount_type, discount_value, status, expires_at) VALUES (?, ?, ?, ?, ?, 'active', ?)");
+    $voucherStmt->bind_param("isssds", $userId, $welcomeCode, $title, $discountType, $discountValue, $voucherExpiry);
+    $voucherStmt->execute();
+    $voucherStmt->close();
+
     // Send email using PHPMailer or mail() here with the $otp
     try {
         // Server settings
@@ -107,6 +122,6 @@ if ($stmt->execute()) {
     echo json_encode(['status' => 'error', 'message' => 'Database error']);
 }
 
-$stmt->close();
+// $stmt->close();
 $conn->close();
 ?>
