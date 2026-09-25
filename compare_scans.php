@@ -57,6 +57,20 @@ $newer = $scans[1];
 // Health score change (higher marks = better)
 $health_score_diff = (float)$newer['health_score'] - (float)$older['health_score'];
 
+$evaluation = "";
+$next_action = "";
+
+if ($health_score_diff >= 10) {
+    $evaluation = "Significant improvement";
+    $next_action = "Continue current routine";
+} elseif ($health_score_diff <= -10) {
+    $evaluation = "Significant decrease";
+    $next_action = "Retake skin scan & obtain new product recommendation to switch product";
+} else {
+    $evaluation = "No major change";
+    $next_action = "Continue current routine and monitor skin condition";
+}
+
 $condition_diffs = [];
 foreach ($older['conditions'] as $key => $old_val) {
     $new_val = $newer['conditions'][$key];
@@ -72,6 +86,8 @@ echo json_encode([
     'older_scan' => $older,
     'newer_scan' => $newer,
     'health_score_change' => round($health_score_diff, 2),
+    'evaluation' => $evaluation,
+    'next_action' => $next_action,
     'condition_changes' => $condition_diffs
 ]);
 ?>
